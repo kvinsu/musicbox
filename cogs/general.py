@@ -10,11 +10,11 @@ from discord.ext import commands
 import requests
 from dotenv import load_dotenv
 
-# get token
+# Get token
 load_dotenv()
 tenor_token = os.getenv("TENOR_TOKEN")
 
-class general(commands.Cog, name='general'):
+class General(commands.Cog, name='general'):
     # improve random generator
     sys_random = random.SystemRandom()
 
@@ -117,18 +117,6 @@ class general(commands.Cog, name='general'):
 
     @commands.command(help='This command slaps someone!', aliases=['punch', 'hit'])
     async def slap(self, ctx, *, username=None):
-        slaps = [
-            'https://c.tenor.com/_aIyKVBt8dUAAAAd/animated-couple.gif', 
-            'https://c.tenor.com/m14m8vGLFugAAAAd/asobi-asobase-anime.gif', 
-            'https://c.tenor.com/gIaioChTOloAAAAd/cat-cute.gif',
-            'https://c.tenor.com/x4RluZcWrWwAAAAd/slap.gif',
-            'https://c.tenor.com/aA5D_h_ej-QAAAAd/cute-slap.gif',
-            'https://c.tenor.com/mMGM1FfaXLgAAAAd/slap-cat.gif',
-            'https://c.tenor.com/Jpp7qo6lEHYAAAAd/mochi-cat.gif',
-            'https://c.tenor.com/oayQFdQOMRUAAAAd/slap-face.gif',
-            'https://c.tenor.com/HiOIMkcHywUAAAAd/tom-slaps-on-ass.gif',
-            'https://c.tenor.com/Q3CI345S0RsAAAAd/mochicat-slap.gif'
-        ]
         slap_gif = self.get_random_gif('hit')
 
         embed = discord.Embed(
@@ -205,12 +193,25 @@ class general(commands.Cog, name='general'):
         await ctx.send(embed=embed)
 
     def get_random_gif(self, searchTerm):
-        response = requests.get(f'https://g.tenor.com/v1/search?q={searchTerm}&key={tenor_token}&limit=50')
-        data = response.json()
-        
-        gif = self.sys_random.choice(data['results'])
-        return gif['media'][0]['gif']['url']
+        # if no TENOR_TOKEN provided, fallback to a small curated list
+        if not tenor_token:
+            # minimal fallback gifs
+            fallback = [
+                'https://c.tenor.com/8nEtM-3oQ1sAAAAC/hug-cats.gif',
+                'https://c.tenor.com/x4RluZcWrWwAAAAd/slap.gif',
+                'https://c.tenor.com/Jpp7qo6lEHYAAAAd/mochi-cat.gif'
+            ]
+            return self.sys_random.choice(fallback)
+
+        try:
+            response = requests.get(f'https://g.tenor.com/v1/search?q={searchTerm}&key={tenor_token}&limit=50', timeout=5)
+            data = response.json()
+            gif = self.sys_random.choice(data.get('results', []))
+            return gif['media'][0]['gif']['url']
+        except Exception:
+            # any fetch issues -> fallback
+            return 'https://c.tenor.com/8nEtM-3oQ1sAAAAC/hug-cats.gif'
 
   
 def setup(client):
-    client.add_cog(general(client))
+    client.add_cog(General(client))
