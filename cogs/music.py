@@ -127,7 +127,7 @@ repeating = {}
 songs = {}
 current_song = {}
 
-class music(commands.Cog):
+class Music(commands.Cog):
     def __init__(self, client):
         self.client = client
 
@@ -411,6 +411,13 @@ class music(commands.Cog):
         else:
             duration = song.duration
 
+        # Safe avatar url for discord.py v2
+        avatar_url = None
+        try:
+            avatar_url = str(getattr(getattr(song.requester, "display_avatar", None), "url", None))
+        except Exception:
+            avatar_url = None
+
         embed = (discord.Embed(title=headline,
                                description=f'{song.title}',
                                color=discord.Color.blurple())
@@ -418,7 +425,7 @@ class music(commands.Cog):
                  .add_field(name='Channel', value=f'[{song.uploader}]({song.uploader_url})')
                  .add_field(name='URL', value=f'[YouTube]({song.url})')
                  .set_thumbnail(url=song.thumbnail)
-                 .set_footer(text=f'Requested by {song.requester}', icon_url=song.requester.avatar_url))
+                 .set_footer(text=f'Requested by {song.requester}', icon_url=avatar_url))
         return embed
 
     # check voice_states of member and bot
@@ -476,5 +483,5 @@ class music(commands.Cog):
             await voice_state.disconnect()
 
 
-def setup(client):
-    client.add_cog(music(client))
+async def setup(client):
+    await client.add_cog(Music(client))

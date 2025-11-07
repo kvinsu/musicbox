@@ -213,5 +213,5 @@ class General(commands.Cog, name='general'):
             return 'https://c.tenor.com/8nEtM-3oQ1sAAAAC/hug-cats.gif'
 
   
-def setup(client):
-    client.add_cog(General(client))
+async def setup(client):
+    await client.add_cog(General(client))

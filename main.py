@@ -9,6 +9,7 @@ import os
 import logging
 import platform
 from dotenv import load_dotenv
+import asyncio
 
 import discord
 from discord.ext import commands, tasks
@@ -23,6 +24,7 @@ intents = discord.Intents.default()
 intents.members = True
 intents.guilds = True
 intents.voice_states = True
+intents.message_content = True
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -41,18 +43,19 @@ client = commands.Bot(command_prefix='!', intents=intents)
 client.help_command = EmbedHelpCommand(no_category='misc')
 
 # Load cogs
-def load_all_cogs():
+async def load_all_cogs():
     logger.info('Loading cogs from ./cogs')
     for file in os.listdir('./cogs'):
-        if file.endswith('.py'):
-            extension = file[:-3]
-            try:
-                client.load_extension(f'cogs.{extension}')
-                logger.info(f"Loaded '{extension}' cog")
-            except Exception as e:
-                logger.exception(f"Failed to load cog {extension}: {e}")
-
-load_all_cogs()
+        if not file.endswith('.py'):
+            continue
+        if file.startswith('__'):
+            continue
+        extension = file[:-3]
+        try:
+            await client.load_extension(f'cogs.{extension}')
+            logger.info(f"Loaded '{extension}' cog")
+        except Exception as e:
+            logger.exception(f"Failed to load cog {extension}: {e}'")
 
 # Periodic status task
 @tasks.loop(minutes=1.0)
@@ -95,7 +98,7 @@ async def on_ready():
         status_task.start()
 
 # Start the bot
-if __name__ == '__main__':
+async def main():
     if not bot_token:
         logger.error("BOT_TOKEN is not set. Set BOT_TOKEN in your .env or environment.")
         if SELF_HOST:
@@ -105,6 +108,15 @@ if __name__ == '__main__':
         raise SystemExit(1)
 
     try:
-        client.run(bot_token)
+        await load_all_cogs()
+        await client.start(bot_token)
     except Exception:
         logger.exception("Bot terminated with an exception")
+    finally:
+        # ensure clean shutdown
+        if not client.is_closed():
+            await client.close()
+
+# Start the bot
+if __name__ == '__main__':
+    asyncio.run(main())

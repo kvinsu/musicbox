@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 bot_id = os.getenv("BOT_ID")
 
-class admin(commands.Cog, name='admin'):
+class Admin(commands.Cog, name='admin'):
     def __init__(self, client):
         self.client = client
     
@@ -38,5 +38,5 @@ class admin(commands.Cog, name='admin'):
         await ctx.send(f'Servers: {servers_to_string}')
 
 
-def setup(client):
-    client.add_cog(admin(client))
+async def setup(client):
+    await client.add_cog(Admin(client))
