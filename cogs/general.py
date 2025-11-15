@@ -117,7 +117,7 @@ class General(commands.Cog, name='general'):
 
     @commands.command(help='This command slaps someone!', aliases=['punch', 'hit'])
     async def slap(self, ctx, *, username=None):
-        slap_gif = self.get_random_gif('hit')
+        slap_gif = self.get_random_gif('punch')
 
         embed = discord.Embed(
             color=discord.Color.blurple()
