@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 bot_id = os.getenv("BOT_ID")
 
-class admin(commands.Cog, name='admin'):
+class Admin(commands.Cog, name='admin'):
     def __init__(self, client):
         self.client = client
     
@@ -33,10 +33,10 @@ class admin(commands.Cog, name='admin'):
     @commands.command(hidden=True, help='Gets all servers the bot is currently in.')
     @commands.is_owner()
     async def servers(self, ctx):
-        servers = await self.client.fetch_guilds().flatten()
+        servers = list(self.client.guilds)
         servers_to_string = ', '.join([server.name for server in servers])
         await ctx.send(f'Servers: {servers_to_string}')
 
 
-def setup(client):
-    client.add_cog(admin(client))
+async def setup(client):
+    await client.add_cog(Admin(client))
