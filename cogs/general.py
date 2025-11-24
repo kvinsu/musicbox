@@ -1,69 +1,73 @@
-'''
-General cog, contains mostly fun and/or useful commands
-'''
-
-import os
+"""General cog with fun and utility commands"""
 
 import random
+from typing import Optional
 import discord
 from discord.ext import commands
 import requests
-from dotenv import load_dotenv
+from config.settings import Config
 
-# Get token
-load_dotenv()
-tenor_token = os.getenv("TENOR_TOKEN")
 
-class General(commands.Cog, name='general'):
-    # improve random generator
+class General(commands.Cog, name='general'):    
+    # Improve random generator
     sys_random = random.SystemRandom()
 
-    def __init__(self, client):
-            self.client = client
+    def __init__(self, client: commands.Bot) -> None:
+        self.client = client
 
     @commands.command(hidden=True, aliases=['commandlist', 'commands'])
-    async def _help(self, ctx):
+    async def _help(self, ctx: commands.Context) -> None:
+        """Show help"""
         await ctx.send_help()
 
-    @commands.command(help='This command returns the current latency of the bot.')
-    async def ping(self, ctx):
+    @commands.command(help='Show bot latency')
+    async def ping(self, ctx: commands.Context) -> None:
+        """Show ping"""
         await ctx.send(f'**Pong:** {round(self.client.latency * 1000)} ms')
 
-    @commands.command(help='This command says hi to the user', aliases=['hi', 'hey'])
-    async def hello(self, ctx):
+    @commands.command(help='Greet the bot', aliases=['hi', 'hey'])
+    async def hello(self, ctx: commands.Context) -> None:
+        """Say hello"""
         hellos = [
             'Hewo °‿‿°', 'Moin', 'Heyy ( ˘ ³˘)♥'
         ]
-
         hello = self.sys_random.choice(hellos)
         await ctx.send(f'{hello} {ctx.message.author.mention}')
     
-    @commands.command(help='This command informs the user about the bot.', aliases=['info', 'stats'])
-    async def about(self, ctx):
+    @commands.command(help='Bot information', aliases=['info', 'stats'])
+    async def about(self, ctx: commands.Context) -> None:
+        """Show bot info"""
         servers = self.client.guilds
-
-        embed = (discord.Embed(title='🎧  About me',
-                               description='Hey, I\'m Kevin\'s music bot, hosted 24/7 on Heroku.',
-                               color=discord.Color.blurple())
-                               .add_field(name='Owner', value='Kevin#4854')
-                               .add_field(name='Servers', value=f'{len(servers)}')
-                               .add_field(name='Library', value='discord.py')
-                               .add_field(name='GitHub', value=f'https://github.com/kvinsu/discord_musicbot', inline=False))
+        embed = discord.Embed(
+            title='🎧 About me',
+            description='A YouTube music bot hosted 24/7.',
+            color=discord.Color.blurple()
+        )
+        embed.add_field(name='Owner', value='Kevin#4854')
+        embed.add_field(name='Servers', value=f'{len(servers)}')
+        embed.add_field(name='Library', value='discord.py')
+        embed.add_field(
+            name='GitHub',
+            value='https://github.com/kvinsu/discord_musicbot',
+            inline=False
+        )
         await ctx.send(embed=embed)
 
-    @commands.command(help='This command answers your question with yes or no.')
-    async def decide(self, ctx, *, question: commands.clean_content):
+    @commands.command(help='Get a yes/no answer')
+    async def decide(self, ctx: commands.Context, *, question: commands.clean_content) -> None:
+        """Answer with yes or no"""
         responses = [
-            'Yes ʘ‿ʘ', 'No ಠ_ಠ', 'Sure (｡◕‿◕｡)', 'Without a doubt, yes ♥‿♥', 'Yeh, oke ( ˇ෴ˇ )',
-            'no... (╯°□°）╯︵ ┻━┻', 'no... baka 눈_눈',
+            'Yes ʘ‿ʘ', 'No ಠ_ಠ', 'Sure (｡◕‿◕｡)', 
+            'Without a doubt, yes ♥‿♥', 'Yeh, oke ( ˇ෴ˇ )',
+            'no... (╯°□°）╯︵ ┻━┻', 'no... 눈_눈',
             'senpai, pls no ;-;', 'Nah ⊙_⊙', 'Yas!!'
         ]
-
         answer = self.sys_random.choice(responses)
         await ctx.send(f'**{answer}**')
 
-    @commands.command(help='This command hugs you or a named person <3')
-    async def hug(self, ctx, username=None):
+    @commands.command(help='Hug someone')
+    async def hug(self, ctx: commands.Context, username: Optional[str] = None) -> None:
+        """Send hug GIF"""
         hugs = [
             'https://c.tenor.com/OXCV_qL-V60AAAAC/mochi-peachcat-mochi.gif',
             'https://c.tenor.com/LadCBLn5HDQAAAAC/poke-hug.gif',
@@ -72,84 +76,122 @@ class General(commands.Cog, name='general'):
             'https://c.tenor.com/GTlDCm4P4EsAAAAd/kitty-kitten.gif',
             'https://c.tenor.com/eAKshP8ZYWAAAAAC/cat-love.gif'
         ]
+        
+        embed = discord.Embed(color=discord.Color.blurple())
+        embed.set_image(url=self.sys_random.choice(hugs))
 
-        embed = discord.Embed(
-            color=discord.Color.blurple()
-        ).set_image(url=self.sys_random.choice(hugs))
-
-        async with ctx.channel.typing():
-            if username != None:
-                mentions_matches = ['<@!','>']
-                if all(x in username for x in mentions_matches):
-                    embed.description = f'{ctx.author.mention} hugs {username}!'
-                else:
-                    member = ctx.guild.get_member_named(username)
-                    if member != None:
-                        embed.description = f'{ctx.author.mention} hugs {member.mention}!'
+        if username:
+            mentions_matches = ['<@!', '>']
+            if all(x in username for x in mentions_matches):
+                embed.description = f'{ctx.author.mention} hugs {username}!'
+            else:
+                member = ctx.guild.get_member_named(username)
+                if member:
+                    embed.description = f'{ctx.author.mention} hugs {member.mention}!'
             
         await ctx.send(embed=embed)
 
-    @commands.command(help='This command performs a random coinflip for you (german).', aliases=["flip", "coin"])
-    async def coinflip(self, ctx):
+    @commands.command(
+        help='Flip a coin (German)', 
+        aliases=["flip", "coin"]
+    )
+    async def coinflip(self, ctx: commands.Context) -> None:
+        """Coin flip"""
         coinsides = ['Kopf', 'Zahl']
-        await ctx.send(f'{ctx.author.mention} hat gecoinflipped und **{self.sys_random.choice(coinsides)}** bekommen! ಠ‿ಠ')
+        result = self.sys_random.choice(coinsides)
+        await ctx.send(
+            f'{ctx.author.mention} hat gecoinflipped und **{result}** bekommen! ಠ‿ಠ'
+        )
 
-    @commands.command(help='This command performs a lol coinflip for you or somebody else (german).', aliases=["lolflip", "lolcoin"])
-    async def lolcoinflip(self, ctx, *, username=None):
-        coinsides = ['wird feeden 🙃', 'wird inten 😭', 'hat carry boots an!! 😮 🥾', 'ist sheesh drauf! 🤩', 'es ist GG 🤗', 'es ist ein ff angle 💀']
-        if username == None:
-            await ctx.send(f'{ctx.author.mention} hat gecoinflipped und **{self.sys_random.choice(coinsides)}**')
+    @commands.command(
+        help='LoL-themed coin flip (German)', 
+        aliases=["lolflip", "lolcoin"]
+    )
+    async def lolcoinflip(
+        self, 
+        ctx: commands.Context, 
+        *, 
+        username: Optional[str] = None
+    ) -> None:
+        """LoL coin flip"""
+        coinsides = [
+            'wird feeden 🙃', 'wird inten 😭', 
+            'hat carry boots an!! 😮 🥾', 'ist sheesh drauf! 🤩',
+            'es ist GG 🤗', 'es ist ein ff angle 💀'
+        ]
+        result = self.sys_random.choice(coinsides)
+        
+        if not username:
+            await ctx.send(f'{ctx.author.mention} hat gecoinflipped und **{result}**')
         else:
-            mentions_matches = ['<@!','>']
+            mentions_matches = ['<@!', '>']
             if all(x in username for x in mentions_matches):
-                await ctx.send(f'{username} hat gecoinflipped und **{self.sys_random.choice(coinsides)}**')
+                await ctx.send(f'{username} hat gecoinflipped und **{result}**')
             else:
                 member = ctx.guild.get_member_named(username)
-                if member != None:
-                    await ctx.send(f'{member.mention} hat gecoinflipped und **{self.sys_random.choice(coinsides)}**')
+                if member:
+                    await ctx.send(f'{member.mention} hat gecoinflipped und **{result}**')
                 else:
-                    await ctx.send(f'**{username}** hat gecoinflipped und **{self.sys_random.choice(coinsides)}**')
+                    await ctx.send(f'**{username}** hat gecoinflipped und **{result}**')
 
-    @commands.command(help='This command performs rock-paper-scissors for you (german).', aliases=["enemenemiste", "schnickschnackschnuck"])
-    async def fliflaflu(self, ctx):
-        fliflaflu = ['✂️ Schere', '🪨 Stein', '🧻 Papier']
-        await ctx.send(f'{ctx.author.mention} hat **{self.sys_random.choice(fliflaflu)}** genommen!')
+    @commands.command(
+        help='Rock-paper-scissors (German)', 
+        aliases=["enemenemiste", "schnickschnackschnuck"]
+    )
+    async def fliflaflu(self, ctx: commands.Context) -> None:
+        """Rock paper scissors"""
+        options = ['✂️ Schere', '🪨 Stein', '🧻 Papier']
+        choice = self.sys_random.choice(options)
+        await ctx.send(f'{ctx.author.mention} hat **{choice}** genommen!')
 
-    @commands.command(help='This command slaps someone!', aliases=['punch', 'hit'])
-    async def slap(self, ctx, *, username=None):
+    @commands.command(
+        help='Slap someone', 
+        aliases=['punch', 'hit']
+    )
+    async def slap(self, ctx: commands.Context, *, username: Optional[str] = None) -> None:
+        """Send slap GIF"""
         slap_gif = self.get_random_gif('punch')
+        
+        embed = discord.Embed(color=discord.Color.blurple())
+        embed.set_image(url=slap_gif)
 
-        embed = discord.Embed(
-            color=discord.Color.blurple()
-        ).set_image(url=slap_gif)
-
-        if username != None:
-            mentions_matches = ['<@!','>']
+        if username:
+            mentions_matches = ['<@!', '>']
             if all(x in username for x in mentions_matches):
                 embed.description = f'{ctx.author.mention} slapped {username}!'
             else:
                 member = ctx.guild.get_member_named(username)
-                if member != None:
+                if member:
                     embed.description = f'{ctx.author.mention} slapped {member.mention}!'
                 else:
                     embed.description = f'{ctx.author.mention} slapped **{username}**!'
 
         await ctx.send(embed=embed)
 
-    @commands.command(help='This command selects an option from a list of options for you.', aliases=["select", "choice"])
-    async def roulette(self, ctx, *, options):
+    @commands.command(
+        help='Select random option from list', 
+        aliases=["select", "choice"]
+    )
+    async def roulette(self, ctx: commands.Context, *, options: str) -> None:
+        """Random selection"""
         parsed_list = list(options.split(" "))
         list_to_string = ', '.join(parsed_list)
 
-        embed = (discord.Embed(title='🎲  Roulette',
-                               color=discord.Color.blurple())
-                               .add_field(name='Options', value=f'{list_to_string}', inline=False)
-                               .add_field(name='Selected', value=f'{self.sys_random.choice(parsed_list)}', inline=False))
-
+        embed = discord.Embed(
+            title='🎲 Roulette',
+            color=discord.Color.blurple()
+        )
+        embed.add_field(name='Options', value=f'{list_to_string}', inline=False)
+        embed.add_field(
+            name='Selected', 
+            value=f'{self.sys_random.choice(parsed_list)}', 
+            inline=False
+        )
         await ctx.send(embed=embed)
 
-    @commands.command(help='This command determines a dere-type for someone!')
-    async def dere(self, ctx, *, username):
+    @commands.command(help='Generate dere-type personality')
+    async def dere(self, ctx: commands.Context, *, username: str) -> None:
+        """Dere type generator"""
         dere_types = {
             'bakadere': 'is very clumsy and stupid | more often than not, they lack common sense',
             'dandere': 'quiet, silent and asocial | come across as emotionless at times | will suddenly become talkative, sweet, and cute when alone with the right person | actually just shy',
@@ -166,36 +208,31 @@ class General(commands.Cog, name='general'):
 
         dere_type, dere_info = self.sys_random.choice(list(dere_types.items()))
 
-        mentions_matches = ['<@!','>']
+        mentions_matches = ['<@!', '>']
         if all(x in username for x in mentions_matches):
-            username = f'{username}'
+            username_display = username
         else:
             member = ctx.guild.get_member_named(username)
-            if member != None:
-                username = f'{member.mention}'
-            else:
-                username = f'{username}'
+            username_display = member.mention if member else username
 
         embed = discord.Embed(
-            title='💞  Dere-type Generator',
-            description=f'**Person:** {username}\n**Type:** {dere_type}\n\n{dere_info}',
+            title='💞 Dere-type Generator',
+            description=f'**Person:** {username_display}\n**Type:** {dere_type}\n\n{dere_info}',
             color=discord.Color.blurple()
         )
-
         await ctx.send(embed=embed)
 
-    @commands.command(help='This command sends a tenor gif according to your search keyword.')
-    async def gif(self, ctx, *, search):
-        embed = discord.Embed(
-            color=discord.Color.blurple()
-        ).set_image(url=self.get_random_gif(search))
-
+    @commands.command(help='Fetch random GIF from Tenor')
+    async def gif(self, ctx: commands.Context, *, search: str) -> None:
+        """Fetch GIF"""
+        embed = discord.Embed(color=discord.Color.blurple())
+        embed.set_image(url=self.get_random_gif(search))
         await ctx.send(embed=embed)
 
-    def get_random_gif(self, searchTerm):
-        # if no TENOR_TOKEN provided, fallback to a small curated list
-        if not tenor_token:
-            # minimal fallback gifs
+    def get_random_gif(self, search_term: str) -> str:
+        """Get random GIF from Tenor or fallback"""
+        # If no TENOR_TOKEN provided, fallback to a small curated list
+        if not Config.TENOR_TOKEN:
             fallback = [
                 'https://c.tenor.com/8nEtM-3oQ1sAAAAC/hug-cats.gif',
                 'https://c.tenor.com/x4RluZcWrWwAAAAd/slap.gif',
@@ -204,14 +241,19 @@ class General(commands.Cog, name='general'):
             return self.sys_random.choice(fallback)
 
         try:
-            response = requests.get(f'https://g.tenor.com/v1/search?q={searchTerm}&key={tenor_token}&limit=50', timeout=5)
+            url = (
+                f'https://g.tenor.com/v1/search?'
+                f'q={search_term}&key={Config.TENOR_TOKEN}&limit=50'
+            )
+            response = requests.get(url, timeout=5)
             data = response.json()
             gif = self.sys_random.choice(data.get('results', []))
             return gif['media'][0]['gif']['url']
         except Exception:
-            # any fetch issues -> fallback
+            # Any fetch issues -> fallback
             return 'https://c.tenor.com/8nEtM-3oQ1sAAAAC/hug-cats.gif'
 
   
-async def setup(client):
+async def setup(client: commands.Bot) -> None:
+    """Setup function for cog"""
     await client.add_cog(General(client))

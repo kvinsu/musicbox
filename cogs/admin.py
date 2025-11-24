@@ -1,42 +1,55 @@
-'''
-Admin cog, contains commands designed purely for the owner
-'''
-
-import os
+"""Admin cog for owner-only commands"""
 
 import discord
 from discord.ext import commands
-from dotenv import load_dotenv
+from config.settings import Config
 
-# get bot id
-load_dotenv()
-bot_id = os.getenv("BOT_ID")
 
-class Admin(commands.Cog, name='admin'):
-    def __init__(self, client):
+class Admin(commands.Cog, name='admin'):    
+    def __init__(self, client: commands.Bot) -> None:
         self.client = client
     
-    @commands.command(hidden=True, help='Shuts down the bot completely.', aliases=['s', 'sleep'])
+    @commands.command(
+        hidden=True, 
+        help='Shut down the bot completely', 
+        aliases=['s', 'sleep']
+    )
     @commands.is_owner()
-    async def shutdown(self, ctx):
+    async def shutdown(self, ctx: commands.Context) -> None:
+        """Shutdown bot"""
         await ctx.message.add_reaction('💤')
         await self.client.close()
 
-    @commands.command(hidden=True, help='Returns an invite link of the bot to a server.')
+    @commands.command(
+        hidden=True, 
+        help='Get the bot invite link'
+    )
     @commands.is_owner()
-    async def invite(self, ctx):
-        embed = (discord.Embed( title='🎧 Invite Link', 
-                                description='https://discordapp.com/oauth2/authorize?client_id={}&permissions=8&scope=bot'.format(bot_id), 
-                                color=discord.Color.blurple()))
+    async def invite(self, ctx: commands.Context) -> None:
+        """Generate invite link"""
+        invite_url = (
+            f'https://discordapp.com/oauth2/authorize?'
+            f'client_id={Config.BOT_ID}&permissions=8&scope=bot'
+        )
+        embed = discord.Embed(
+            title='🎧 Invite Link',
+            description=invite_url,
+            color=discord.Color.blurple()
+        )
         await ctx.send(embed=embed)
 
-    @commands.command(hidden=True, help='Gets all servers the bot is currently in.')
+    @commands.command(
+        hidden=True, 
+        help='List all servers the bot is in'
+    )
     @commands.is_owner()
-    async def servers(self, ctx):
+    async def servers(self, ctx: commands.Context) -> None:
+        """List all guilds"""
         servers = list(self.client.guilds)
-        servers_to_string = ', '.join([server.name for server in servers])
-        await ctx.send(f'Servers: {servers_to_string}')
+        servers_str = ', '.join([server.name for server in servers])
+        await ctx.send(f'**Servers ({len(servers)}):** {servers_str}')
 
 
-async def setup(client):
+async def setup(client: commands.Bot) -> None:
+    """Setup function for cog"""
     await client.add_cog(Admin(client))
