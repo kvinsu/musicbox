@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  musicbot:
+    build: .
+    container_name: discord-musicbot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - BOT_ID=${BOT_ID}
+      - COMMAND_PREFIX=${COMMAND_PREFIX:-!}
+      - PLAYLIST_MAX=${PLAYLIST_MAX:-100}
+      - YTDL_MAX_WORKERS=${YTDL_MAX_WORKERS:-4}
+      - DISCONNECT_TIMEOUT=${DISCONNECT_TIMEOUT:-300}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - TENOR_TOKEN=${TENOR_TOKEN:-}
+    networks:
+      - botnet
+    deploy:
+      # Limit resources (optional)
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+networks:
+  botnet:
+    driver: bridge
