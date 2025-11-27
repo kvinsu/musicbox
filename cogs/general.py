@@ -15,32 +15,68 @@ class General(commands.Cog, name='general'):
     def __init__(self, client: commands.Bot) -> None:
         self.client = client
 
-    @commands.command(hidden=True, aliases=['commandlist', 'commands'])
-    async def _help(self, ctx: commands.Context) -> None:
-        """Show help"""
-        await ctx.send_help()
+    @commands.hybrid_command(name='help', help='Show bot commands')
+    async def help_command(self, ctx: commands.Context, *, command: Optional[str] = None) -> None:
+        """Show help for commands"""
+        if command:
+            # Show help for specific command
+            cmd = self.client.get_command(command)
+            if cmd:
+                embed = discord.Embed(
+                    title=f'🎧 Help: {cmd.name}',
+                    description=cmd.help or 'No description available',
+                    color=discord.Color.blurple()
+                )
+                if cmd.aliases:
+                    embed.add_field(name='Aliases', value=', '.join(cmd.aliases), inline=False)
+                if cmd.signature:
+                    embed.add_field(name='Usage', value=f'`{ctx.prefix}{cmd.name} {cmd.signature}`', inline=False)
+                await ctx.send(embed=embed)
+            else:
+                await ctx.send(f'❌ Command `{command}` not found.')
+            return
+        
+        # Show all commands grouped by cog
+        embed = discord.Embed(
+            title='🎧 Bot Commands',
+            description=f'Use `{ctx.prefix}help <command>` or `/help <command>` for more info on a command.',
+            color=discord.Color.blurple()
+        )
+        
+        for cog_name, cog in self.client.cogs.items():
+            # Get commands from this cog (excluding hidden ones)
+            cog_commands = [cmd for cmd in cog.get_commands() if not cmd.hidden]
+            if cog_commands:
+                command_list = ', '.join([f'`{cmd.name}`' for cmd in cog_commands])
+                embed.add_field(
+                    name=f'**{cog_name.title()}**',
+                    value=command_list,
+                    inline=False
+                )
+        
+        await ctx.send(embed=embed)
 
-    @commands.command(help='Show bot latency')
+    @commands.hybrid_command(name='ping', help='Show bot latency')
     async def ping(self, ctx: commands.Context) -> None:
         """Show ping"""
         await ctx.send(f'**Pong:** {round(self.client.latency * 1000)} ms')
 
-    @commands.command(help='Greet the bot', aliases=['hi', 'hey'])
+    @commands.hybrid_command(name='hello', help='Greet the bot', aliases=['hi', 'hey'])
     async def hello(self, ctx: commands.Context) -> None:
         """Say hello"""
         hellos = [
             'Hewo °‿‿°', 'Moin', 'Heyy ( ˘ ³˘)♥'
         ]
         hello = self.sys_random.choice(hellos)
-        await ctx.send(f'{hello} {ctx.message.author.mention}')
+        await ctx.send(f'{hello} {ctx.author.mention}')
     
-    @commands.command(help='Bot information', aliases=['info', 'stats'])
+    @commands.hybrid_command(name='about', help='Bot information', aliases=['info', 'stats'])
     async def about(self, ctx: commands.Context) -> None:
         """Show bot info"""
         servers = self.client.guilds
         embed = discord.Embed(
             title='🎧 About me',
-            description='A YouTube music bot hosted 24/7.',
+            description='A self-hosted YouTube music bot, type `/help` or `!help` to see all commands 😘',
             color=discord.Color.blurple()
         )
         embed.add_field(name='Owner', value='Kevin#4854')
@@ -48,25 +84,25 @@ class General(commands.Cog, name='general'):
         embed.add_field(name='Library', value='discord.py')
         embed.add_field(
             name='GitHub',
-            value='https://github.com/kvinsu/discord_musicbot',
+            value='https://github.com/kvinsu/musicbox',
             inline=False
         )
         await ctx.send(embed=embed)
 
-    @commands.command(help='Get a yes/no answer')
-    async def decide(self, ctx: commands.Context, *, question: commands.clean_content) -> None:
+    @commands.hybrid_command(name='decide', help='Get a yes/no answer')
+    async def decide(self, ctx: commands.Context, *, question: str) -> None:
         """Answer with yes or no"""
         responses = [
             'Yes ʘ‿ʘ', 'No ಠ_ಠ', 'Sure (｡◕‿◕｡)', 
             'Without a doubt, yes ♥‿♥', 'Yeh, oke ( ˇ෴ˇ )',
             'no... (╯°□°）╯︵ ┻━┻', 'no... 눈_눈',
-            'senpai, pls no ;-;', 'Nah ⊙_⊙', 'Yas!!'
+            'no ;-;', 'Nah ⊙_⊙', 'Yas!!'
         ]
         answer = self.sys_random.choice(responses)
         await ctx.send(f'**{answer}**')
 
-    @commands.command(help='Hug someone')
-    async def hug(self, ctx: commands.Context, username: Optional[str] = None) -> None:
+    @commands.hybrid_command(name='hug', help='Hug someone')
+    async def hug(self, ctx: commands.Context, user: Optional[discord.User] = None) -> None:
         """Send hug GIF"""
         hugs = [
             'https://c.tenor.com/OXCV_qL-V60AAAAC/mochi-peachcat-mochi.gif',
@@ -80,21 +116,12 @@ class General(commands.Cog, name='general'):
         embed = discord.Embed(color=discord.Color.blurple())
         embed.set_image(url=self.sys_random.choice(hugs))
 
-        if username:
-            mentions_matches = ['<@!', '>']
-            if all(x in username for x in mentions_matches):
-                embed.description = f'{ctx.author.mention} hugs {username}!'
-            else:
-                member = ctx.guild.get_member_named(username)
-                if member:
-                    embed.description = f'{ctx.author.mention} hugs {member.mention}!'
+        if user:
+            embed.description = f'{ctx.author.mention} hugs {user.mention}!'
             
         await ctx.send(embed=embed)
 
-    @commands.command(
-        help='Flip a coin (German)', 
-        aliases=["flip", "coin"]
-    )
+    @commands.hybrid_command(name='coinflip', help='Flip a coin (German)', aliases=["flip", "coin"])
     async def coinflip(self, ctx: commands.Context) -> None:
         """Coin flip"""
         coinsides = ['Kopf', 'Zahl']
@@ -103,7 +130,8 @@ class General(commands.Cog, name='general'):
             f'{ctx.author.mention} hat gecoinflipped und **{result}** bekommen! ಠ‿ಠ'
         )
 
-    @commands.command(
+    @commands.hybrid_command(
+        name='lolcoinflip',
         help='LoL-themed coin flip (German)', 
         aliases=["lolflip", "lolcoin"]
     )
@@ -134,44 +162,27 @@ class General(commands.Cog, name='general'):
                 else:
                     await ctx.send(f'**{username}** hat gecoinflipped und **{result}**')
 
-    @commands.command(
-        help='Rock-paper-scissors (German)', 
-        aliases=["enemenemiste", "schnickschnackschnuck"]
-    )
+    @commands.hybrid_command(name='fliflaflu', help='Rock-paper-scissors (German)', aliases=["enemenemiste", "schnickschnackschnuck"])
     async def fliflaflu(self, ctx: commands.Context) -> None:
         """Rock paper scissors"""
         options = ['✂️ Schere', '🪨 Stein', '🧻 Papier']
         choice = self.sys_random.choice(options)
         await ctx.send(f'{ctx.author.mention} hat **{choice}** genommen!')
 
-    @commands.command(
-        help='Slap someone', 
-        aliases=['punch', 'hit']
-    )
-    async def slap(self, ctx: commands.Context, *, username: Optional[str] = None) -> None:
+    @commands.hybrid_command(name='slap', help='Slap someone', aliases=['punch', 'hit'])
+    async def slap(self, ctx: commands.Context, user: Optional[discord.User] = None) -> None:
         """Send slap GIF"""
         slap_gif = self.get_random_gif('punch')
         
         embed = discord.Embed(color=discord.Color.blurple())
         embed.set_image(url=slap_gif)
 
-        if username:
-            mentions_matches = ['<@!', '>']
-            if all(x in username for x in mentions_matches):
-                embed.description = f'{ctx.author.mention} slapped {username}!'
-            else:
-                member = ctx.guild.get_member_named(username)
-                if member:
-                    embed.description = f'{ctx.author.mention} slapped {member.mention}!'
-                else:
-                    embed.description = f'{ctx.author.mention} slapped **{username}**!'
+        if user:
+            embed.description = f'{ctx.author.mention} slapped {user.mention}!'
 
         await ctx.send(embed=embed)
 
-    @commands.command(
-        help='Select random option from list', 
-        aliases=["select", "choice"]
-    )
+    @commands.hybrid_command(name='roulette', help='Select random option from list', aliases=["select", "choice"])
     async def roulette(self, ctx: commands.Context, *, options: str) -> None:
         """Random selection"""
         parsed_list = list(options.split(" "))
@@ -189,40 +200,7 @@ class General(commands.Cog, name='general'):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(help='Generate dere-type personality')
-    async def dere(self, ctx: commands.Context, *, username: str) -> None:
-        """Dere type generator"""
-        dere_types = {
-            'bakadere': 'is very clumsy and stupid | more often than not, they lack common sense',
-            'dandere': 'quiet, silent and asocial | come across as emotionless at times | will suddenly become talkative, sweet, and cute when alone with the right person | actually just shy',
-            'darudere': 'often very lazy and dull | will usually ignore others and do whatever they want unless someone they care about asks them to do something or needs their help',
-            'deredere': 'very sweet and energetic | usually cheerful and happy | tend to spread joyfulness to others',
-            'hinedere': 'has cynical world views | cold-hearted | highly arrogant | has a soft side deep down that may reveal itself once their love interest breaks through',
-            'hiyakasudere': 'likes to tease and flirt | sarcastic, mischievous, or at least playful',
-            'kamidere': 'feels superior compared to others | highly arrogant, overconfident and proud | aren\'t afraid to speak their minds and show everyone how right they are | stubborn | narcissistic',
-            'kanedere': 'attracted to others with money or status | gold digger',
-            'kuudere': 'calm and collected on the outside | never panics | shows little emotion | tends to be a leader | often cold, blunt, and cynical | very caring on the inside, at least when it comes to the ones they love',
-            'tsundere': 'usually stern, cold or hostile to the person they like and even others | occasionally showing the warm, loving feelings hidden inside | shy, nervous, insecure | can\'t help acting badly in front of their crush',
-            'undere': 'says yes to pretty much everything the one they love says | easily manipulated'
-        }
-
-        dere_type, dere_info = self.sys_random.choice(list(dere_types.items()))
-
-        mentions_matches = ['<@!', '>']
-        if all(x in username for x in mentions_matches):
-            username_display = username
-        else:
-            member = ctx.guild.get_member_named(username)
-            username_display = member.mention if member else username
-
-        embed = discord.Embed(
-            title='💞 Dere-type Generator',
-            description=f'**Person:** {username_display}\n**Type:** {dere_type}\n\n{dere_info}',
-            color=discord.Color.blurple()
-        )
-        await ctx.send(embed=embed)
-
-    @commands.command(help='Fetch random GIF from Tenor')
+    @commands.hybrid_command(name='gif', help='Fetch random GIF from Tenor')
     async def gif(self, ctx: commands.Context, *, search: str) -> None:
         """Fetch GIF"""
         embed = discord.Embed(color=discord.Color.blurple())

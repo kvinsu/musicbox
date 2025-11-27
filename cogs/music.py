@@ -21,36 +21,6 @@ class Music(commands.Cog):
         self.player = MusicPlayer()
         self._disconnect_tasks: dict[int, asyncio.Task] = {}
 
-    async def safe_send(
-        self, 
-        ctx: commands.Context, 
-        message: Optional[str] = None, 
-        embed: Optional[discord.Embed] = None
-    ) -> None:
-        """Send message safely, ignoring send failures"""
-        try:
-            if embed:
-                await ctx.send(embed=embed)
-            elif message:
-                await ctx.send(message)
-        except Exception as e:
-            logger.debug(f'Failed to send message: {e}')
-
-    async def send_to_channel(
-        self, 
-        channel: discord.TextChannel, 
-        message: Optional[str] = None, 
-        embed: Optional[discord.Embed] = None
-    ) -> None:
-        """Send to a specific channel safely"""
-        try:
-            if embed:
-                await channel.send(embed=embed)
-            elif message:
-                await channel.send(message)
-        except Exception as e:
-            logger.debug(f'Failed to send to channel: {e}')
-
     def make_after_callback(self, ctx: commands.Context):
         """Create callback that schedules async continuation"""
         def callback_wrapper(*args, **kwargs) -> None:
@@ -63,7 +33,7 @@ class Music(commands.Cog):
     async def _after_play(self, ctx: commands.Context, exc: Optional[Exception]) -> None:
         """Async continuation called after track ends"""
         if exc:
-            await self.safe_send(ctx, f'⚠️ Playback error: {exc}')
+            await ctx.send(f'⚠️ Playback error: {exc}')
         await self.play_next(ctx)
 
     async def _schedule_disconnect(
@@ -88,21 +58,21 @@ class Music(commands.Cog):
     async def voice_check(self, ctx: commands.Context, voice: Optional[discord.VoiceClient]) -> bool:
         """Check if bot and user are in same voice channel"""
         if not voice:
-            await self.safe_send(ctx, '❌ I\'m not in a voice channel.')
+            await ctx.send('❌ I\'m not in a voice channel.')
             return False
         elif not isinstance(ctx.author, discord.Member) or ctx.author.voice is None:
-            await self.safe_send(ctx, '❌ You\'re not in a voice channel.')
+            await ctx.send('❌ You\'re not in a voice channel.')
             return False
         elif voice.channel != ctx.author.voice.channel:
-            await self.safe_send(ctx, '❌ You\'re not in my voice channel.')
+            await ctx.send('❌ You\'re not in my voice channel.')
             return False
         return True
 
-    @commands.command(help='Make the bot join your voice channel')
+    @commands.hybrid_command(name='join', help='Make the bot join your voice channel')
     async def join(self, ctx: commands.Context) -> None:
         """Join user's voice channel"""
         if not isinstance(ctx.author, discord.Member) or ctx.author.voice is None:
-            await self.safe_send(ctx, '❌ You\'re not in a voice channel.')
+            await ctx.send('❌ You\'re not in a voice channel.')
             return
 
         channel = ctx.author.voice.channel
@@ -113,13 +83,13 @@ class Music(commands.Cog):
 
         # Initialize queue for guild
         self.player.get_queue(ctx.guild.id)
-        await ctx.message.add_reaction('👋')
+        await ctx.send('👋')
 
-    @commands.command(help='Make the bot leave the voice channel')
+    @commands.hybrid_command(name='leave', help='Make the bot leave the voice channel')
     async def leave(self, ctx: commands.Context) -> None:
         """Leave voice channel and cleanup"""
         if not ctx.voice_client:
-            await self.safe_send(ctx, '❌ I\'m not in a voice channel.')
+            await ctx.send('❌ I\'m not in a voice channel.')
             return
 
         await ctx.voice_client.disconnect()
@@ -128,22 +98,22 @@ class Music(commands.Cog):
         dt = self._disconnect_tasks.pop(ctx.guild.id, None)
         if dt and not dt.done():
             dt.cancel()
-        await ctx.message.add_reaction('👋')
+        await ctx.send('👋')
 
-    @commands.command(help='Skip the current song')
+    @commands.hybrid_command(name='skip', help='Skip the current song')
     async def skip(self, ctx: commands.Context) -> None:
         """Skip current track"""
         voice = ctx.voice_client
         if not await self.voice_check(ctx, voice):
             return
         if not voice.is_playing():
-            await self.safe_send(ctx, '❌ Nothing is playing.')
+            await ctx.send('❌ Nothing is playing.')
             return
 
         voice.stop()
-        await ctx.message.add_reaction('⏭️')
+        await ctx.send('⏭️ Skipped.')
 
-    @commands.command(help='Pause the current song')
+    @commands.hybrid_command(name='pause', help='Pause the current song')
     async def pause(self, ctx: commands.Context) -> None:
         """Pause playback"""
         voice = ctx.voice_client
@@ -151,26 +121,26 @@ class Music(commands.Cog):
             return
 
         if not voice.is_playing():
-            await self.safe_send(ctx, '❌ Nothing is playing.')
+            await ctx.send('❌ Nothing is playing.')
             return
 
         voice.pause()
-        await ctx.message.add_reaction('⏸️')
+        await ctx.send('⏸️ Paused.')
 
-    @commands.command(help='Resume the current song')
+    @commands.hybrid_command(name='resume', help='Resume the current song')
     async def resume(self, ctx: commands.Context) -> None:
         """Resume playback"""
         voice = ctx.voice_client
         if not await self.voice_check(ctx, voice):
             return
         if not voice.is_paused():
-            await self.safe_send(ctx, '❌ Nothing is paused.')
+            await ctx.send('❌ Nothing is paused.')
             return
 
         voice.resume()
-        await ctx.message.add_reaction('▶️')
+        await ctx.send('▶️ Resuming...')
 
-    @commands.command(help='Toggle repeat mode', aliases=['loop'])
+    @commands.hybrid_command(name='repeat', help='Toggle repeat mode', aliases=['loop'])
     async def repeat(self, ctx: commands.Context) -> None:
         """Toggle repeat mode"""
         voice = ctx.voice_client
@@ -179,14 +149,14 @@ class Music(commands.Cog):
 
         queue = self.player.get_queue(ctx.guild.id)
         if not voice.is_playing() or queue.now_playing is None:
-            await self.safe_send(ctx, '❌ Nothing is playing.')
+            await ctx.send('❌ Nothing is playing.')
             return
 
         queue.repeat_mode = not queue.repeat_mode
         status = 'ON' if queue.repeat_mode else 'OFF'
-        await self.safe_send(ctx, f'🔁 Repeat mode **{status}**')
+        await ctx.send(f'🔁 Repeat mode **{status}**')
 
-    @commands.command(help='Shuffle the queue')
+    @commands.hybrid_command(name='shuffle', help='Shuffle the queue')
     async def shuffle(self, ctx: commands.Context) -> None:
         """Shuffle queue"""
         voice = ctx.voice_client
@@ -195,39 +165,39 @@ class Music(commands.Cog):
 
         queue = self.player.get_queue(ctx.guild.id)
         if queue.size() == 0:
-            await self.safe_send(ctx, '❌ Queue is empty.')
+            await ctx.send('❌ Queue is empty.')
             return
 
         await queue.shuffle()
-        await ctx.message.add_reaction('🔀')
+        await ctx.send('🔀 Queue shuffled.')
 
-    @commands.command(help='Stop playback and clear queue')
+    @commands.hybrid_command(name='stop', help='Stop playback and clear queue')
     async def stop(self, ctx: commands.Context) -> None:
         """Stop playback and clear queue"""
         voice = ctx.voice_client
         if not await self.voice_check(ctx, voice):
             return
         if not voice.is_playing():
-            await self.safe_send(ctx, '❌ Nothing is playing.')
+            await ctx.send('❌ Nothing is playing.')
             return
 
         voice.stop()
         queue = self.player.get_queue(ctx.guild.id)
         await queue.clear()
-        await ctx.message.add_reaction('⏹️')
+        await ctx.send('⏹️ Stopped playback and cleared the queue.')
 
-    @commands.command(help='Clear the queue')
+    @commands.hybrid_command(name='clear', help='Clear the queue')
     async def clear(self, ctx: commands.Context) -> None:
         """Clear the queue"""
         queue = self.player.get_queue(ctx.guild.id)
         if queue.size() == 0:
-            await self.safe_send(ctx, '❌ Queue is empty.')
+            await ctx.send('❌ Queue is empty.')
             return
 
         await queue.clear()
-        await ctx.message.add_reaction('🗑️')
+        await ctx.send('🗑️ Cleared the queue.')
 
-    @commands.command(help='Remove a song from the queue')
+    @commands.hybrid_command(name='remove', help='Remove a song from the queue')
     async def remove(self, ctx: commands.Context, index: int) -> None:
         """Remove track from queue by index"""
         voice = ctx.voice_client
@@ -236,29 +206,29 @@ class Music(commands.Cog):
 
         queue = self.player.get_queue(ctx.guild.id)
         if queue.size() == 0 or index < 1 or index > queue.size():
-            await self.safe_send(ctx, '❌ Invalid index.')
+            await ctx.send('❌ Invalid index.')
             return
 
         removed = await queue.remove(index - 1)
         if removed:
-            await self.safe_send(ctx, f'🎧 **Removed:** {removed.title}')
+            await ctx.send(f'🗑️ **Removed:** {removed.title}')
         else:
-            await self.safe_send(ctx, '❌ Failed to remove track.')
+            await ctx.send('❌ Failed to remove track.')
 
-    @commands.command(help='Show the current queue')
+    @commands.hybrid_command(name='queue', help='Show the current queue')
     async def queue(self, ctx: commands.Context) -> None:
         """Display queue"""
         queue = self.player.get_queue(ctx.guild.id)
         if queue.size() == 0:
-            await self.safe_send(ctx, '❌ Queue is empty.')
+            await ctx.send('❌ Queue is empty.')
             return
 
         # Convert deque to list for embed builder
         queue_list = list(queue.queue)
         embed = EmbedBuilder.queue_list(queue_list)
-        await self.safe_send(ctx, embed=embed)
+        await ctx.send(embed=embed)
 
-    @commands.command(help='Show the currently playing song', aliases=['np'])
+    @commands.hybrid_command(name='nowplaying', help='Show the currently playing song', aliases=['np'])
     async def nowplaying(self, ctx: commands.Context) -> None:
         """Show currently playing track"""
         voice = ctx.voice_client
@@ -267,23 +237,23 @@ class Music(commands.Cog):
 
         queue = self.player.get_queue(ctx.guild.id)
         if not queue.now_playing or not voice.is_playing():
-            await self.safe_send(ctx, '❌ Nothing is playing.')
+            await ctx.send('❌ Nothing is playing.')
             return
 
         source = queue.now_playing
-        embed = EmbedBuilder.music_now_playing(source, source.info.get('requester'))
-        await self.safe_send(ctx, embed=embed)
+        embed = EmbedBuilder.music_now_playing(source, source.data.get('requester'))
+        await ctx.send(embed=embed)
 
-    @commands.command(help='Play a song/playlist from YouTube')
-    async def play(self, ctx: commands.Context, *, url: str) -> None:
+    @commands.hybrid_command(name='play', help='Play a song or playlist from YouTube')
+    async def play(self, ctx: commands.Context, *, song: str) -> None:
         """Play track or playlist"""
         if not isinstance(ctx.author, discord.Member) or ctx.author.voice is None:
-            await self.safe_send(ctx, '❌ You\'re not in a voice channel.')
+            await ctx.send('❌ You\'re not in a voice channel.')
             return
 
         voice = ctx.voice_client
         if voice and voice.channel != ctx.author.voice.channel:
-            await self.safe_send(ctx, '❌ You\'re not in my voice channel.')
+            await ctx.send('❌ You\'re not in my voice channel.')
             return
 
         if not voice:
@@ -292,9 +262,9 @@ class Music(commands.Cog):
 
         async with ctx.typing():
             try:
-                tracks, errors = await YTDLSource.search(url, loop=self.client.loop)
+                tracks, errors = await YTDLSource.search(song, loop=self.client.loop)
             except YTDLError as e:
-                await self.safe_send(ctx, f'⚠️ {str(e)}')
+                await ctx.send(f'⚠️ {str(e)}')
                 return
 
         # Attach requester/channel to each track
@@ -314,7 +284,7 @@ class Music(commands.Cog):
             msg_lines += [f'• {s}' for s in sample]
             if more > 0:
                 msg_lines.append(f'...and {more} more.')
-            await self.safe_send(ctx, '\n'.join(msg_lines))
+            await ctx.send('\n'.join(msg_lines))
 
         # Cancel disconnect task
         dt = self._disconnect_tasks.pop(ctx.guild.id, None)
@@ -325,7 +295,7 @@ class Music(commands.Cog):
         if not voice.is_playing():
             await self.play_next(ctx)
         else:
-            await self.safe_send(ctx, f'🎧 **Enqueued:** {len(tracks)} track(s)')
+            await ctx.send(f'🎧 **Enqueued:** {len(tracks)} track(s)')
 
     async def play_next(self, ctx: commands.Context) -> None:
         """Play next song; skip bad items"""
@@ -351,7 +321,7 @@ class Music(commands.Cog):
                 source = await YTDLSource.create_source(track, loop=self.client.loop)
             except YTDLError as e:
                 logger.warning(f"Failed to create source: {e}")
-                await self.safe_send(ctx, f'⚠️ Skipped `{track.title}`: {e}')
+                await ctx.send(f'⚠️ Skipped `{track.title}`: {e}')
                 continue
 
             # Set now playing
@@ -363,8 +333,7 @@ class Music(commands.Cog):
                 channel = source.data.get('channel')
                 requester = source.data.get('requester')
                 if channel:
-                    await self.send_to_channel(
-                        channel,
+                    await channel.send(
                         embed=EmbedBuilder.music_now_playing(source, requester)
                     )
                 return

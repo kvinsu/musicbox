@@ -26,21 +26,9 @@ intents.guilds = True
 intents.voice_states = True
 intents.message_content = True
 
-# Customize help command
-class EmbedHelpCommand(commands.MinimalHelpCommand):
-    async def send_pages(self):
-        destination = self.get_destination()
-        embed = discord.Embed(
-            title='🎧 Commands',
-            color=discord.Color.blurple(),
-            description=''
-        )
-        for page in self.paginator.pages:
-            embed.description = (embed.description or '') + page
-        await destination.send(embed=embed)
-
 client = commands.Bot(command_prefix=Config.COMMAND_PREFIX, intents=intents)
-client.help_command = EmbedHelpCommand(no_category='misc')
+# Remove default help command for hybrid command support
+client.remove_command('help')
 
 # Load cogs
 async def load_cogs():
@@ -55,7 +43,7 @@ async def load_cogs():
 @tasks.loop(minutes=1.0)
 async def status_task():
     try:
-        await client.change_presence(activity=discord.Game(name=f"{Config.COMMAND_PREFIX}help"))
+        await client.change_presence(activity=discord.Game(name=f"{Config.COMMAND_PREFIX}about"))
     except Exception:
         logger.exception("Failed to set status")
 
@@ -76,10 +64,23 @@ async def on_guild_join(guild):
 
 @client.event
 async def on_ready():
+    # Fetch application info to get owner
+    if not client.owner_id:
+        app_info = await client.application_info()
+        client.owner_id = app_info.owner.id
+        logger.info(f'Bot owner: {app_info.owner} (ID: {app_info.owner.id})')
+    
     logger.info(f'Bot ready: {client.user}')
     logger.info(f'Python: {platform.python_version()}')
     logger.info(f'Discord.py: {discord.__version__}')
     logger.info(f'Platform: {platform.system()} {platform.release()}')
+
+    # Sync slash commands
+    try:
+        synced = await client.tree.sync()
+        logger.info(f'Synced {len(synced)} slash command(s)')
+    except Exception as e:
+        logger.exception(f'Failed to sync slash commands: {e}')
     
     if not status_task.is_running():
         status_task.start()
