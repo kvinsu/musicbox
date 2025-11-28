@@ -170,7 +170,7 @@ class General(commands.Cog, name='general'):
         await ctx.send(f'{ctx.author.mention} hat **{choice}** genommen!')
 
     @commands.hybrid_command(name='slap', help='Slap someone', aliases=['punch', 'hit'])
-    async def slap(self, ctx: commands.Context, user: Optional[discord.User] = None) -> None:
+    async def slap(self, ctx: commands.Context, user: Optional[discord.User] = None, reason: str = "None") -> None:
         """Send slap GIF"""
         slap_gif = self.get_random_gif('punch')
         
@@ -178,7 +178,20 @@ class General(commands.Cog, name='general'):
         embed.set_image(url=slap_gif)
 
         if user:
-            embed.description = f'{ctx.author.mention} slapped {user.mention}!'
+            embed.description = f'{ctx.author.mention} slapped {user.mention}. Reason: {reason}'
+
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_command(name='poke', help='Poke someone', aliases=['tap'])
+    async def poke(self, ctx: commands.Context, user: discord.User, *, reason: Optional[str] = "") -> None:
+        """Send poke GIF"""
+        poke_gif = self.get_random_gif('poke')
+        
+        embed = discord.Embed(color=discord.Color.blurple())
+        embed.set_image(url=poke_gif)
+
+        if user:
+            embed.description = f'{user.mention} {reason}'
 
         await ctx.send(embed=embed)
 
