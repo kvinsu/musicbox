@@ -8,7 +8,7 @@ class Config:
     BOT_TOKEN = os.getenv("BOT_TOKEN")
     BOT_ID = os.getenv("BOT_ID")
     COMMAND_PREFIX = os.getenv("COMMAND_PREFIX", "!")
-    SELF_HOST = os.getenv("SELF_HOST", "false").lower() in ("1", "true", "yes")
+    SELF_HOST = os.getenv("SELF_HOST", "true").lower() in ("1", "true", "yes")
     
     # API Keys
     TENOR_TOKEN = os.getenv("TENOR_TOKEN")
