@@ -8,6 +8,7 @@
 
 * **Hybrid Commands** — all commands work with both prefix (`!play`) and slash (`/play`) formats
 * **Music Playback** — from YouTube video or playlist URLs or using search keywords
+* **Spotify Support** — play Spotify tracks, playlists, and albums (resolves to YouTube)
 * **Playlist support** — automatically skips unavailable/copyrighted videos and plays remaining tracks
 * **Queue management** — view, add, remove, shuffle, and clear songs
 * **Playback controls** — play, pause, resume, stop, skip, and repeat modes
@@ -112,12 +113,19 @@ All commands support both **prefix** (`!command`) and **slash** (`/command`) for
 | `BOT_ID` | ✅ | - | Discord bot client ID |
 | `COMMAND_PREFIX` | ❌ | `!` | Prefix for text commands |
 | `TENOR_TOKEN` | ❌ | - | Tenor API key (only required for GIF search commands) |
-| `PLAYLIST_MAX` | ❌ | 100 | Max tracks to enqueue from a playlist |
+| `SPOTIFY_CLIENT_ID` | ❌ | - | Spotify API client ID (for Spotify URL support) |
+| `SPOTIFY_CLIENT_SECRET` | ❌ | - | Spotify API client secret (for Spotify URL support) |
+| `PLAYLIST_MAX` | ❌ | 400 | Max tracks to enqueue from a playlist |
 | `YTDL_MAX_WORKERS` | ❌ | 4 | Max concurrent yt-dlp workers |
 | `DISCONNECT_TIMEOUT` | ❌ | 300 | Auto-disconnect timeout in seconds |
 | `LOG_LEVEL` | ❌ | INFO | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `SELF_HOST` | ❌ | true | Set to `false` if cloud-hosting |
 
-## Future Milestones
+### Getting Spotify API Credentials
 
-* support for spotify links/playlists
+1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/)
+2. Create a new app
+3. Copy the **Client ID** and **Client Secret**
+4. Add them to your `.env` file
+
+**Note:** Spotify support is optional. The bot works without it for YouTube-only playback.
