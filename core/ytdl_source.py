@@ -9,10 +9,13 @@ import discord
 import yt_dlp
 from config.settings import Config
 from utils.errors import YTDLError
+from core.spotify_handler import SpotifyHandler
 
 logger = logging.getLogger("musicbot")
 
 _YTDL_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=Config.YTDL_MAX_WORKERS)
+_SPOTIFY_HANDLER = SpotifyHandler()
+
 @dataclass
 class Track:
     info: dict[str, Any]
@@ -66,8 +69,54 @@ class YTDLSource(discord.PCMVolumeTransformer):
     
     @classmethod
     async def search(cls, query: str, *, loop=None) -> tuple[list[Track], list[str]]:
-        """Search and return metadata only (lightweight)"""
+        """
+        Search and return metadata only (lightweight)
+        Resolve Spotify URLs if applicable
+        """
         loop = loop or asyncio.get_event_loop()
+
+        # Check if it's a Spotify URL
+        if _SPOTIFY_HANDLER.is_spotify_url(query):
+            if not Config.has_spotify():
+                raise YTDLError(
+                    "Spotify support not configured. "
+                    "Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET environment variables."
+                )
+            
+            try:
+                # Resolve Spotify URL to YouTube search queries
+                search_queries = await _SPOTIFY_HANDLER.resolve(query)
+                logger.info(f"Resolved Spotify URL to {len(search_queries)} search queries")
+            except Exception as e:
+                logger.exception("Spotify resolution failed")
+                raise YTDLError(f"Failed to resolve Spotify URL: {e}")
+            
+            # Search YouTube for each resolved query
+            all_tracks = []
+            all_errors = []
+            
+            for search_query in search_queries:
+                try:
+                    tracks, errors = await cls._search_youtube(search_query, loop)
+                    # Only take the first (best) result for each Spotify track
+                    if tracks:
+                        all_tracks.append(tracks[0])
+                    all_errors.extend(errors)
+                except YTDLError as e:
+                    all_errors.append(f"{search_query}: {str(e)}")
+                    continue
+            
+            if not all_tracks:
+                raise YTDLError("Could not find any tracks from Spotify URL on YouTube")
+            
+            return all_tracks, all_errors
+        
+        # Regular YouTube search
+        return await cls._search_youtube(query, loop)
+    
+    @classmethod
+    async def _search_youtube(cls, query: str, loop) -> tuple[list[Track], list[str]]:
+        """Internal method for YouTube search"""
         partial = functools.partial(cls.ytdl.extract_info, query, download=False, process=False)
         
         try:
