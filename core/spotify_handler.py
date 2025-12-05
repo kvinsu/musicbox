@@ -62,23 +62,53 @@ class SpotifyHandler:
         except Exception as e:
             logger.error(f"Failed to resolve Spotify track {track_id}: {e}")
             raise YTDLError(f"Failed to resolve Spotify track: {e}")
-    
+        
     async def resolve_playlist(self, playlist_id: str) -> list[str]:
         """Resolve Spotify playlist to list of YouTube search queries"""
         if not self.spotify:
             raise YTDLError("Spotify support not configured")
         
         try:
-            results = self.spotify.playlist_tracks(playlist_id, limit=Config.PLAYLIST_MAX)
             queries = []
+            offset = 0
+            limit = 100  # fixed Spotify API limit per request
             
-            for item in results['items'][:Config.PLAYLIST_MAX]:
-                if not item['track']:
-                    continue
-                track = item['track']
-                artists = ', '.join([artist['name'] for artist in track['artists']])
-                query = f"{artists} - {track['name']}"
-                queries.append(query)
+            while len(queries) < Config.PLAYLIST_MAX:
+                try:
+                    results = self.spotify.playlist_tracks(
+                        playlist_id, 
+                        limit=min(limit, Config.PLAYLIST_MAX - len(queries)),
+                        offset=offset
+                    )
+                except Exception as e:
+                    # Handle 404 or permission errors
+                    if '404' in str(e):
+                        raise YTDLError("Spotify playlist not found or is private")
+                    elif '403' in str(e):
+                        raise YTDLError("No permission to access this Spotify playlist")
+                    raise
+                
+                items = results.get('items', [])
+                if not items:
+                    break
+                
+                for item in items:
+                    if not item or not item.get('track'):
+                        continue
+                    track = item['track']
+                    artists = ', '.join([artist['name'] for artist in track.get('artists', [])])
+                    track_name = track.get('name', 'Unknown')
+                    query = f"{artists} - {track_name}"
+                    queries.append(query)
+                    
+                    if len(queries) >= Config.PLAYLIST_MAX:
+                        break
+                
+                # Check if there are more items
+                if not results.get('next'):
+                    break
+                    
+                offset += limit
             
             logger.info(f"Resolved Spotify playlist: {len(queries)} tracks")
             return queries
@@ -95,9 +125,22 @@ class SpotifyHandler:
             album = self.spotify.album(album_id)
             queries = []
             
-            for track in album['tracks']['items'][:Config.PLAYLIST_MAX]:
-                artists = ', '.join([artist['name'] for artist in track['artists']])
-                query = f"{artists} - {track['name']}"
+            # Get all tracks (albums are usually smaller, but paginate if needed)
+            tracks = album['tracks']['items']
+            offset = len(tracks)
+            
+            # If album has more tracks, fetch them
+            while len(tracks) < album['tracks']['total'] and len(queries) < Config.PLAYLIST_MAX:
+                more_tracks = self.spotify.album_tracks(album_id, limit=50, offset=offset)
+                if not more_tracks.get('items'):
+                    break
+                tracks.extend(more_tracks['items'])
+                offset += 50
+            
+            for track in tracks[:Config.PLAYLIST_MAX]:
+                artists = ', '.join([artist['name'] for artist in track.get('artists', [])])
+                track_name = track.get('name', 'Unknown')
+                query = f"{artists} - {track_name}"
                 queries.append(query)
             
             logger.info(f"Resolved Spotify album: {len(queries)} tracks")
