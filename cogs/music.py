@@ -6,7 +6,7 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
-from core.ytdl_source import YTDLSource
+from core.ytdl_source import YTDLSource, Track
 from core.music_player import MusicPlayer
 from core.embed_builder import EmbedBuilder
 from utils.errors import YTDLError
@@ -307,14 +307,17 @@ class Music(commands.Cog):
         queue = self.player.get_queue(guild_id)
 
         while True:
-            track = await queue.dequeue()
-            if not track:
-                # Schedule disconnect
-                if guild_id not in self._disconnect_tasks or self._disconnect_tasks[guild_id].done():
-                    self._disconnect_tasks[guild_id] = asyncio.create_task(
-                        self._schedule_disconnect(guild_id, voice)
-                    )
-                return
+            if queue.repeat_mode and queue.now_playing is not None:
+                track = Track(info=dict(queue.now_playing.data))
+            else:
+                track = await queue.dequeue()
+                if not track:
+                    # Schedule disconnect
+                    if guild_id not in self._disconnect_tasks or self._disconnect_tasks[guild_id].done():
+                        self._disconnect_tasks[guild_id] = asyncio.create_task(
+                            self._schedule_disconnect(guild_id, voice)
+                        )
+                    return
 
             # Try to create playable source
             try:

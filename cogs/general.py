@@ -195,7 +195,7 @@ class General(commands.Cog, name='general'):
 
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name='roulette', help='Select random option from list', aliases=["select", "choice"])
+    @commands.hybrid_command(name='roulette', help='Select random option from list divided by spaces', aliases=["select", "choice"])
     async def roulette(self, ctx: commands.Context, *, options: str) -> None:
         """Random selection"""
         parsed_list = list(options.split(" "))
