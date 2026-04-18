@@ -343,9 +343,9 @@ class Music(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(
-        self, 
-        member: discord.Member, 
-        before: discord.VoiceState, 
+        self,
+        member: discord.Member,
+        before: discord.VoiceState,
         after: discord.VoiceState
     ) -> None:
         """Auto-disconnect when alone in voice channel"""
