@@ -33,6 +33,16 @@ class Track:
         return self.info.get('webpage_url') or self.info.get('url') or ''
 
 class YTDLSource(discord.PCMVolumeTransformer):
+    YOUTUBE_DEFAULT_HEADERS = {
+        'User-Agent': (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) '
+            'Chrome/126.0.0.0 Safari/537.36'
+        ),
+        'Referer': 'https://www.youtube.com/',
+        'Origin': 'https://www.youtube.com',
+    }
+
     ytdl_options = {
         'format': 'bestaudio/best',
         'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
@@ -47,12 +57,28 @@ class YTDLSource(discord.PCMVolumeTransformer):
         'source_address': '0.0.0.0',
         'socket_timeout': 30
     }
-    
+
+    @classmethod
+    def build_ffmpeg_before_options(cls, http_headers: dict[str, str] | None = None) -> str:
+        """Build a FFmpeg command that includes the request headers YouTube expects"""
+        headers = {**cls.YOUTUBE_DEFAULT_HEADERS, **(http_headers or {})}
+        header_string = '\r\n'.join(f'{key}: {value}' for key, value in headers.items())
+        return (
+            '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
+            f'-headers "{header_string}"'
+        )
+
     ffmpeg_options = {
-        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+        'before_options': (
+            '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
+            '-headers "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36\r\n'
+            'Referer: https://www.youtube.com/\r\n'
+            'Origin: https://www.youtube.com"'
+        ),
         'options': '-vn -q:a 5'
     }
-    
+
     ytdl = yt_dlp.YoutubeDL(ytdl_options)  # type: ignore[arg-type]
     
     def __init__(self, source, *, data, volume=0.5):
@@ -174,10 +200,15 @@ class YTDLSource(discord.PCMVolumeTransformer):
         data_dict = dict(data)
         data_dict['requester'] = track.info.get('requester')
         data_dict['channel'] = track.info.get('channel')
-        
+
         stream_url: str = data['url']  # type: ignore[assignment]
+        before_options = cls.build_ffmpeg_before_options(data.get('http_headers'))
         try:
-            audio = discord.FFmpegPCMAudio(stream_url, before_options=cls.ffmpeg_options['before_options'], options=cls.ffmpeg_options['options'])
+            audio = discord.FFmpegPCMAudio(
+                stream_url,
+                before_options=before_options,
+                options=cls.ffmpeg_options['options'],
+            )
             return cls(audio, data=data_dict)
         except Exception as e:
             raise YTDLError(f"FFmpeg error: {e}")
