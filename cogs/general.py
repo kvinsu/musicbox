@@ -136,6 +136,7 @@ class General(commands.Cog, name='general'):
         help='LoL-themed coin flip (German)', 
         aliases=["lolflip", "lolcoin"]
     )
+    @commands.guild_only()
     async def lolcoinflip(
         self, 
         ctx: commands.Context, 

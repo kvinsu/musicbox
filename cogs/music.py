@@ -74,6 +74,7 @@ class Music(commands.Cog):
         return True
 
     @commands.hybrid_command(name='join', help='Make the bot join your voice channel')
+    @commands.guild_only()
     async def join(self, ctx: commands.Context) -> None:
         """Join user's voice channel"""
         if not isinstance(ctx.author, discord.Member) or ctx.author.voice is None:
@@ -93,6 +94,7 @@ class Music(commands.Cog):
         await ctx.send('👋')
 
     @commands.hybrid_command(name='leave', help='Make the bot leave the voice channel')
+    @commands.guild_only()
     async def leave(self, ctx: commands.Context) -> None:
         """Leave voice channel and cleanup"""
         if not ctx.voice_client:
@@ -110,6 +112,7 @@ class Music(commands.Cog):
         await ctx.send('👋')
 
     @commands.hybrid_command(name='skip', help='Skip the current song')
+    @commands.guild_only()
     async def skip(self, ctx: commands.Context) -> None:
         """Skip current track"""
         voice = ctx.voice_client
@@ -125,6 +128,7 @@ class Music(commands.Cog):
         await ctx.send('⏭️ Skipped.')
 
     @commands.hybrid_command(name='pause', help='Pause the current song')
+    @commands.guild_only()
     async def pause(self, ctx: commands.Context) -> None:
         """Pause playback"""
         voice = ctx.voice_client
@@ -139,6 +143,7 @@ class Music(commands.Cog):
         await ctx.send('⏸️ Paused.')
 
     @commands.hybrid_command(name='resume', help='Resume the current song')
+    @commands.guild_only()
     async def resume(self, ctx: commands.Context) -> None:
         """Resume playback"""
         voice = ctx.voice_client
@@ -152,6 +157,7 @@ class Music(commands.Cog):
         await ctx.send('▶️ Resuming...')
 
     @commands.hybrid_command(name='repeat', help='Toggle repeat mode', aliases=['loop'])
+    @commands.guild_only()
     async def repeat(self, ctx: commands.Context) -> None:
         """Toggle repeat mode"""
         voice = ctx.voice_client
@@ -168,6 +174,7 @@ class Music(commands.Cog):
         await ctx.send(f'🔁 Repeat mode **{status}**')
 
     @commands.hybrid_command(name='shuffle', help='Shuffle the queue')
+    @commands.guild_only()
     async def shuffle(self, ctx: commands.Context) -> None:
         """Shuffle queue"""
         voice = ctx.voice_client
@@ -183,6 +190,7 @@ class Music(commands.Cog):
         await ctx.send('🔀 Queue shuffled.')
 
     @commands.hybrid_command(name='stop', help='Stop playback and clear queue')
+    @commands.guild_only()
     async def stop(self, ctx: commands.Context) -> None:
         """Stop playback and clear queue"""
         voice = ctx.voice_client
@@ -200,6 +208,7 @@ class Music(commands.Cog):
         await ctx.send('⏹️ Stopped playback and cleared the queue.')
 
     @commands.hybrid_command(name='clear', help='Clear the queue')
+    @commands.guild_only()
     async def clear(self, ctx: commands.Context) -> None:
         """Clear the queue"""
         queue = self.player.get_queue(ctx.guild.id)
@@ -211,6 +220,7 @@ class Music(commands.Cog):
         await ctx.send('🗑️ Cleared the queue.')
 
     @commands.hybrid_command(name='remove', help='Remove a song from the queue')
+    @commands.guild_only()
     async def remove(self, ctx: commands.Context, index: int) -> None:
         """Remove track from queue by index"""
         voice = ctx.voice_client
@@ -229,6 +239,7 @@ class Music(commands.Cog):
             await ctx.send('❌ Failed to remove track.')
 
     @commands.hybrid_command(name='queue', help='Show the current queue')
+    @commands.guild_only()
     async def queue(self, ctx: commands.Context) -> None:
         """Display queue"""
         queue = self.player.get_queue(ctx.guild.id)
@@ -242,6 +253,7 @@ class Music(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name='nowplaying', help='Show the currently playing song', aliases=['np'])
+    @commands.guild_only()
     async def nowplaying(self, ctx: commands.Context) -> None:
         """Show currently playing track"""
         voice = ctx.voice_client
@@ -258,6 +270,7 @@ class Music(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name='play', help='Play a song or playlist from YouTube')
+    @commands.guild_only()
     async def play(self, ctx: commands.Context, *, song: str) -> None:
         """Play track or playlist"""
         if not isinstance(ctx.author, discord.Member) or ctx.author.voice is None:
