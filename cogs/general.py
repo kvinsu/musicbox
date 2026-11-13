@@ -80,12 +80,18 @@ class General(commands.Cog, name='general'):
     async def about(self, ctx: commands.Context) -> None:
         embed = discord.Embed(
             title='🎧 About me',
-            description='A self-hosted YouTube music bot, type `/help` or `!help` to see all commands 😘',
+            description=(
+                f'A self-hosted YouTube music bot, type `/help` or `{Config.COMMAND_PREFIX}help` to see all commands 😘'
+            ),
             color=discord.Color.blurple(),
         )
-        embed.add_field(name='Owner', value='Kevin#4854')
+        # Fetched at login; for team-owned apps AppInfo.owner is a placeholder for the team
+        if app := self.client.application:
+            owner = app.team.owner if app.team else app.owner
+            if owner:
+                embed.add_field(name='Owner', value=owner.mention)
         embed.add_field(name='Servers', value=str(len(self.client.guilds)))
-        embed.add_field(name='Library', value='discord.py')
+        embed.add_field(name='Library', value=f'discord.py {discord.__version__}')
         embed.add_field(name='GitHub', value='https://github.com/kvinsu/musicbox', inline=False)
         await ctx.send(embed=embed)
 

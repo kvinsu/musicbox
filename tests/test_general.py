@@ -24,6 +24,26 @@ def sent_embed(ctx):
     return ctx.send.await_args.kwargs['embed']
 
 
+@pytest.mark.parametrize(
+    ('team', 'owner_mention'),
+    [
+        (None, '<@1>'),
+        (MagicMock(owner=MagicMock(mention='<@2>')), '<@2>'),
+    ],
+)
+async def test_about_shows_the_application_owner(general, ctx, team, owner_mention):
+    general.client.application = MagicMock(team=team, owner=MagicMock(mention='<@1>'))
+    general.client.guilds = [object(), object()]
+
+    await general.about.callback(general, ctx)
+
+    embed = sent_embed(ctx)
+    fields = {f.name: f.value for f in embed.fields}
+    assert fields['Owner'] == owner_mention
+    assert fields['Servers'] == '2'
+    assert '`!help`' in embed.description
+
+
 async def test_roulette_ignores_extra_whitespace(general, ctx, monkeypatch):
     monkeypatch.setattr(general.sys_random, 'choice', lambda options: options[-1])
 
