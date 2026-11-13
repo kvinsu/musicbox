@@ -1,0 +1,13 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+# Explicit so ruff upgrades can't change the rule set: pycodestyle errors,
+# pyflakes, bugbear, and blocking calls inside async code
+select = ["E4", "E7", "E9", "F", "B", "ASYNC"]

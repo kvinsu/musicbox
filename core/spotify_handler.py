@@ -61,7 +61,7 @@ class SpotifyHandler:
             return query
         except Exception as e:
             logger.error(f"Failed to resolve Spotify track {track_id}: {e}")
-            raise YTDLError(f"Failed to resolve Spotify track: {e}")
+            raise YTDLError(f"Failed to resolve Spotify track: {e}") from e
         
     def resolve_playlist(self, playlist_id: str) -> list[str]:
         """Resolve Spotify playlist to list of YouTube search queries"""
@@ -83,9 +83,9 @@ class SpotifyHandler:
                 except Exception as e:
                     # Handle 404 or permission errors
                     if '404' in str(e):
-                        raise YTDLError("Spotify playlist not found or is private")
+                        raise YTDLError("Spotify playlist not found or is private") from e
                     elif '403' in str(e):
-                        raise YTDLError("No permission to access this Spotify playlist")
+                        raise YTDLError("No permission to access this Spotify playlist") from e
                     raise
                 
                 items = results.get('items', [])
@@ -115,7 +115,7 @@ class SpotifyHandler:
             return queries
         except Exception as e:
             logger.error(f"Failed to resolve Spotify playlist {playlist_id}: {e}")
-            raise YTDLError(f"Failed to resolve Spotify playlist: {e}")
+            raise YTDLError(f"Failed to resolve Spotify playlist: {e}") from e
     
     def resolve_album(self, album_id: str) -> list[str]:
         """Resolve Spotify album to list of YouTube search queries"""
@@ -148,7 +148,7 @@ class SpotifyHandler:
             return queries
         except Exception as e:
             logger.error(f"Failed to resolve Spotify album {album_id}: {e}")
-            raise YTDLError(f"Failed to resolve Spotify album: {e}")
+            raise YTDLError(f"Failed to resolve Spotify album: {e}") from e
     
     def resolve(self, url: str) -> list[str]:
         """

@@ -64,6 +64,18 @@
    docker-compose down
    ```
 
+## Development
+
+```sh
+pip install -r requirements-dev.txt
+ruff check .
+pytest
+```
+
+The tests replace Discord, yt-dlp, FFmpeg and Spotify with fakes, so they run offline. Playback, voice and slash command behavior still need a manual check on a test server.
+
+CI runs lint, tests and a Docker build on every pull request and push to `main`. Dependencies are pinned in `requirements.txt` and kept current by Dependabot. Merge yt-dlp updates promptly, since YouTube changes regularly break older versions.
+
 ## Commands
 
 All commands support both **prefix** (`!command`) and **slash** (`/command`) formats.

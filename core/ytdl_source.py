@@ -69,14 +69,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
             f'-headers "{header_string}"'
         )
 
+    # before_options depend on the stream's headers, see build_ffmpeg_before_options
     ffmpeg_options = {
-        'before_options': (
-            '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
-            '-headers "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36\r\n'
-            'Referer: https://www.youtube.com/\r\n'
-            'Origin: https://www.youtube.com\r\n"'
-        ),
         'options': '-vn -q:a 5'
     }
 
@@ -116,7 +110,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 logger.info(f"Resolved Spotify URL to {len(search_queries)} search queries")
             except Exception as e:
                 logger.exception("Spotify resolution failed")
-                raise YTDLError(f"Failed to resolve Spotify URL: {e}")
+                raise YTDLError(f"Failed to resolve Spotify URL: {e}") from e
             
             # Search YouTube for each resolved query
             all_tracks = []
@@ -150,7 +144,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
             data = await loop.run_in_executor(_YTDL_EXECUTOR, partial)
         except Exception as e:
             logger.exception("YTDL search failed")
-            raise YTDLError(f"Search failed: {e}")
+            raise YTDLError(f"Search failed: {e}") from e
         
         if not data:
             raise YTDLError(f"No results for: {query}")
@@ -185,7 +179,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         try:
             data = await loop.run_in_executor(_YTDL_EXECUTOR, partial)
         except Exception as e:
-            raise YTDLError(f"Failed to fetch: {e}")
+            raise YTDLError(f"Failed to fetch: {e}") from e
         
         if not data:
             raise YTDLError("No data available")
@@ -214,4 +208,4 @@ class YTDLSource(discord.PCMVolumeTransformer):
             )
             return cls(audio, data=data_dict)
         except Exception as e:
-            raise YTDLError(f"FFmpeg error: {e}")
+            raise YTDLError(f"FFmpeg error: {e}") from e

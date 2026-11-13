@@ -37,7 +37,7 @@ async def load_cogs():
         try:
             await client.load_extension(f'cogs.{file}')
             logger.info(f"Loaded '{file}' cog")
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to load cog {file}")
 
 @tasks.loop(minutes=1.0)
