@@ -1,30 +1,23 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+FROM python:3.15-slim
 
-# Install FFmpeg and other dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libsodium-dev \
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# FFmpeg decodes the streams and pulls in libopus, which discord.py needs for voice
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+RUN useradd --create-home --uid 1000 botuser
 WORKDIR /app
 
-# Copy requirements first for better caching
+# Dependencies first so code changes don't invalidate this layer
 COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY . .
-
-# Create non-root user for security
-RUN useradd -m -u 1000 botuser && \
-    chown -R botuser:botuser /app
-
+COPY --chown=botuser:botuser . .
 USER botuser
 
-# Run the bot
 CMD ["python", "main.py"]

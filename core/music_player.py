@@ -1,64 +1,62 @@
-"""Music player logic and queue management"""
-from collections import deque
-from dataclasses import dataclass
-from typing import Optional, Deque
-import asyncio
+"""Per-guild queue state"""
 
-@dataclass
-class Track:
-    info: dict
+import asyncio
+import random
+from collections import defaultdict, deque
+from collections.abc import Iterable, Iterator
+
+from core.ytdl_source import Track, YTDLSource
+
 
 class MusicQueue:
-    """Per-guild music queue manager"""
-    def __init__(self, guild_id: int):
-        self.guild_id = guild_id
-        self.queue: Deque[Track] = deque()
-        self.now_playing: Optional[Track] = None
-        self.repeat_mode: bool = False
-        self.lock: asyncio.Lock = asyncio.Lock()
-    
-    async def enqueue(self, tracks: list[Track]):
-        async with self.lock:
-            self.queue.extend(tracks)
-    
-    async def dequeue(self) -> Optional[Track]:
-        async with self.lock:
-            if not self.queue:
-                return None
-            return self.queue.popleft()
-    
-    async def clear(self):
-        async with self.lock:
-            self.queue.clear()
-    
-    async def shuffle(self):
-        async with self.lock:
-            import random
-            temp = list(self.queue)
-            random.shuffle(temp)
-            self.queue = deque(temp)
-    
-    async def remove(self, index: int) -> Optional[Track]:
-        async with self.lock:
-            if 0 <= index < len(self.queue):
-                temp = list(self.queue)
-                removed = temp.pop(index)
-                self.queue = deque(temp)
-                return removed
+    """Tracks waiting to play in one guild, plus the one playing now.
+
+    Queue operations never await, so they are atomic on the event loop and
+    need no lock of their own.
+    """
+
+    def __init__(self) -> None:
+        self._tracks: deque[Track] = deque()
+        self.now_playing: YTDLSource | None = None
+        self.repeat_mode = False
+        # Held while picking and starting the next track, which spans awaits
+        self.play_lock = asyncio.Lock()
+
+    def __len__(self) -> int:
+        return len(self._tracks)
+
+    def __iter__(self) -> Iterator[Track]:
+        return iter(self._tracks)
+
+    def enqueue(self, tracks: Iterable[Track]) -> None:
+        self._tracks.extend(tracks)
+
+    def dequeue(self) -> Track | None:
+        return self._tracks.popleft() if self._tracks else None
+
+    def clear(self) -> None:
+        self._tracks.clear()
+
+    def shuffle(self) -> None:
+        random.shuffle(self._tracks)
+
+    def remove(self, index: int) -> Track | None:
+        """Remove and return the track at a zero-based index, if there is one"""
+        if not 0 <= index < len(self._tracks):
             return None
-    
-    def size(self) -> int:
-        return len(self.queue)
+        track = self._tracks[index]
+        del self._tracks[index]
+        return track
+
 
 class MusicPlayer:
-    """Manages music queues across guilds"""
-    def __init__(self):
-        self.queues: dict[int, MusicQueue] = {}
-    
+    """Queues for every guild the bot plays in"""
+
+    def __init__(self) -> None:
+        self.queues: defaultdict[int, MusicQueue] = defaultdict(MusicQueue)
+
     def get_queue(self, guild_id: int) -> MusicQueue:
-        if guild_id not in self.queues:
-            self.queues[guild_id] = MusicQueue(guild_id)
         return self.queues[guild_id]
-    
-    def cleanup(self, guild_id: int):
+
+    def cleanup(self, guild_id: int) -> None:
         self.queues.pop(guild_id, None)

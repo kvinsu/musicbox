@@ -28,9 +28,10 @@ wheels/
 .env
 .env.local
 
-# IDEs
+# IDEs and local tooling
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -47,6 +48,14 @@ docker-compose.yml
 # Documentation
 README.md
 *.md
+
+# Development
+.github/
+tests/
+.pytest_cache/
+.ruff_cache/
+pyproject.toml
+requirements-dev.txt
 
 # Logs
 *.log
