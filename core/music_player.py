@@ -16,6 +16,8 @@ class MusicQueue:
         self.now_playing: Optional[Track] = None
         self.repeat_mode: bool = False
         self.lock: asyncio.Lock = asyncio.Lock()
+        # Held while picking and starting the next track
+        self.play_lock: asyncio.Lock = asyncio.Lock()
     
     async def enqueue(self, tracks: list[Track]):
         async with self.lock:

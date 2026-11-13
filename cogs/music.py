@@ -32,9 +32,13 @@ class Music(commands.Cog):
 
     async def _after_play(self, ctx: commands.Context, exc: Optional[Exception]) -> None:
         """Async continuation called after track ends"""
-        if exc:
-            await ctx.send(f'⚠️ Playback error: {exc}')
-        await self.play_next(ctx)
+        # Nothing awaits this coroutine, so log failures instead of losing them
+        try:
+            if exc:
+                await ctx.channel.send(f'⚠️ Playback error: {exc}')
+            await self.play_next(ctx)
+        except Exception:
+            logger.exception(f'Failed to continue playback in guild {ctx.guild.id}')
 
     async def _schedule_disconnect(
         self, 
@@ -46,7 +50,8 @@ class Music(commands.Cog):
         delay = delay or Config.DISCONNECT_TIMEOUT
         try:
             await asyncio.sleep(delay)
-            if voice and not voice.is_playing():
+            # A stale client's disconnect() would unregister the guild's newer voice client
+            if voice and voice.is_connected() and not voice.is_playing():
                 queue = self.player.get_queue(guild_id)
                 if queue.size() == 0:
                     await voice.disconnect()
@@ -76,10 +81,12 @@ class Music(commands.Cog):
             return
 
         channel = ctx.author.voice.channel
-        if ctx.voice_client is None:
-            await channel.connect()
-        else:
-            await ctx.voice_client.move_to(channel)
+        # Defer slash interactions, connecting can exceed Discord's 3s limit
+        async with ctx.typing():
+            if ctx.voice_client is None:
+                await channel.connect()
+            else:
+                await ctx.voice_client.move_to(channel)
 
         # Initialize queue for guild
         self.player.get_queue(ctx.guild.id)
@@ -92,7 +99,9 @@ class Music(commands.Cog):
             await ctx.send('❌ I\'m not in a voice channel.')
             return
 
-        await ctx.voice_client.disconnect()
+        # Defer slash interactions, disconnecting waits on the gateway
+        async with ctx.typing():
+            await ctx.voice_client.disconnect()
         self.player.cleanup(ctx.guild.id)
         # Cancel disconnect task
         dt = self._disconnect_tasks.pop(ctx.guild.id, None)
@@ -106,10 +115,12 @@ class Music(commands.Cog):
         voice = ctx.voice_client
         if not await self.voice_check(ctx, voice):
             return
-        if not voice.is_playing():
+        if not voice.is_playing() and not voice.is_paused():
             await ctx.send('❌ Nothing is playing.')
             return
 
+        # Otherwise repeat mode would replay the skipped track
+        self.player.get_queue(ctx.guild.id).now_playing = None
         voice.stop()
         await ctx.send('⏭️ Skipped.')
 
@@ -148,7 +159,7 @@ class Music(commands.Cog):
             return
 
         queue = self.player.get_queue(ctx.guild.id)
-        if not voice.is_playing() or queue.now_playing is None:
+        if (not voice.is_playing() and not voice.is_paused()) or queue.now_playing is None:
             await ctx.send('❌ Nothing is playing.')
             return
 
@@ -177,13 +188,15 @@ class Music(commands.Cog):
         voice = ctx.voice_client
         if not await self.voice_check(ctx, voice):
             return
-        if not voice.is_playing():
+        if not voice.is_playing() and not voice.is_paused():
             await ctx.send('❌ Nothing is playing.')
             return
 
-        voice.stop()
+        # Empty the queue and drop repeat first, the after-play callback would otherwise continue
         queue = self.player.get_queue(ctx.guild.id)
+        queue.repeat_mode = False
         await queue.clear()
+        voice.stop()
         await ctx.send('⏹️ Stopped playback and cleared the queue.')
 
     @commands.hybrid_command(name='clear', help='Clear the queue')
@@ -236,7 +249,7 @@ class Music(commands.Cog):
             return
 
         queue = self.player.get_queue(ctx.guild.id)
-        if not queue.now_playing or not voice.is_playing():
+        if not queue.now_playing or (not voice.is_playing() and not voice.is_paused()):
             await ctx.send('❌ Nothing is playing.')
             return
 
@@ -286,16 +299,21 @@ class Music(commands.Cog):
                 msg_lines.append(f'...and {more} more.')
             await ctx.send('\n'.join(msg_lines))
 
+        if not tracks:
+            await ctx.send('❌ No playable tracks found.')
+            return
+
         # Cancel disconnect task
         dt = self._disconnect_tasks.pop(ctx.guild.id, None)
         if dt and not dt.done():
             dt.cancel()
 
-        # Start playback if idle
-        if not voice.is_playing():
+        # Always reply here, slash commands need a response and play_next only posts to the channel
+        await ctx.send(f'🎧 **Enqueued:** {len(tracks)} track(s)')
+
+        # Start playback if idle, a paused track still owns the player
+        if not voice.is_playing() and not voice.is_paused():
             await self.play_next(ctx)
-        else:
-            await ctx.send(f'🎧 **Enqueued:** {len(tracks)} track(s)')
 
     async def play_next(self, ctx: commands.Context) -> None:
         """Play next song; skip bad items"""
@@ -306,33 +324,44 @@ class Music(commands.Cog):
         guild_id = ctx.guild.id
         queue = self.player.get_queue(guild_id)
 
-        while True:
-            if queue.repeat_mode and queue.now_playing is not None:
-                track = Track(info=dict(queue.now_playing.data))
-            else:
-                track = await queue.dequeue()
-                if not track:
-                    # Schedule disconnect
-                    if guild_id not in self._disconnect_tasks or self._disconnect_tasks[guild_id].done():
-                        self._disconnect_tasks[guild_id] = asyncio.create_task(
-                            self._schedule_disconnect(guild_id, voice)
-                        )
+        # The after-play callback and /play can race here, only one may start a track
+        async with queue.play_lock:
+            if not voice.is_connected() or voice.is_playing() or voice.is_paused():
+                return
+
+            while True:
+                if queue.repeat_mode and queue.now_playing is not None:
+                    track = Track(info=dict(queue.now_playing.data))
+                else:
+                    track = await queue.dequeue()
+                    if not track:
+                        # Schedule disconnect
+                        if guild_id not in self._disconnect_tasks or self._disconnect_tasks[guild_id].done():
+                            self._disconnect_tasks[guild_id] = asyncio.create_task(
+                                self._schedule_disconnect(guild_id, voice)
+                            )
+                        return
+
+                # Try to create playable source
+                try:
+                    source = await YTDLSource.create_source(track, loop=self.client.loop)
+                except YTDLError as e:
+                    logger.warning(f"Failed to create source: {e}")
+                    await ctx.channel.send(f'⚠️ Skipped `{track.title}`: {e}')
+                    # Don't retry a broken repeat track forever
+                    queue.now_playing = None
+                    continue
+
+                # Play; failures here aren't track specific (e.g. disconnected), so don't drain the queue
+                try:
+                    voice.play(source, after=self.make_after_callback(ctx))
+                except Exception as e:
+                    logger.exception(f'Playback start failed: {e}')
                     return
 
-            # Try to create playable source
-            try:
-                source = await YTDLSource.create_source(track, loop=self.client.loop)
-            except YTDLError as e:
-                logger.warning(f"Failed to create source: {e}")
-                await ctx.send(f'⚠️ Skipped `{track.title}`: {e}')
-                continue
+                # Set now playing
+                queue.now_playing = source
 
-            # Set now playing
-            queue.now_playing = source
-
-            # Play
-            try:
-                voice.play(source, after=self.make_after_callback(ctx))
                 channel = source.data.get('channel')
                 requester = source.data.get('requester')
                 if channel:
@@ -340,9 +369,6 @@ class Music(commands.Cog):
                         embed=EmbedBuilder.music_now_playing(source, requester)
                     )
                 return
-            except Exception as e:
-                logger.exception(f'Playback start failed: {e}')
-                continue
 
     @commands.Cog.listener()
     async def on_voice_state_update(
@@ -353,6 +379,9 @@ class Music(commands.Cog):
     ) -> None:
         """Auto-disconnect when alone in voice channel"""
         if member == self.client.user:
+            # Kicked or disconnected elsewhere, don't resume a stale queue on the next join
+            if after.channel is None:
+                self.player.cleanup(member.guild.id)
             return
 
         voice = member.guild.voice_client
