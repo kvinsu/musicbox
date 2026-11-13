@@ -21,7 +21,7 @@
 
 ### Requirements
 
-* [Python 3.11+](https://www.python.org/downloads/) (tested with 3.11.7+)
+* [Python 3.15+](https://www.python.org/downloads/)
 * [FFmpeg](https://ffmpeg.org/download.html) executable in PATH
 * [Docker](https://www.docker.com/) to run the app
 * Discord app and a bot account (with ownership or admin permissions)

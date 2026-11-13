@@ -5,7 +5,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py315"
 
 [tool.ruff.lint]
 # Explicit so ruff upgrades can't change the rule set: pycodestyle errors,
