@@ -1,6 +1,7 @@
 """YouTube-DL source handling"""
 import asyncio
 import functools
+import itertools
 import logging
 import concurrent.futures
 from dataclasses import dataclass
@@ -62,7 +63,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
     def build_ffmpeg_before_options(cls, http_headers: dict[str, str] | None = None) -> str:
         """Build a FFmpeg command that includes the request headers YouTube expects"""
         headers = {**cls.YOUTUBE_DEFAULT_HEADERS, **(http_headers or {})}
-        header_string = '\r\n'.join(f'{key}: {value}' for key, value in headers.items())
+        header_string = ''.join(f'{key}: {value}\r\n' for key, value in headers.items())
         return (
             '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
             f'-headers "{header_string}"'
@@ -74,7 +75,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
             '-headers "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
             'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36\r\n'
             'Referer: https://www.youtube.com/\r\n'
-            'Origin: https://www.youtube.com"'
+            'Origin: https://www.youtube.com\r\n"'
         ),
         'options': '-vn -q:a 5'
     }
@@ -110,8 +111,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
                 )
             
             try:
-                # Resolve Spotify URL to YouTube search queries
-                search_queries = await _SPOTIFY_HANDLER.resolve(query)
+                # Resolve Spotify URL to YouTube search queries (spotipy is blocking)
+                search_queries = await loop.run_in_executor(None, _SPOTIFY_HANDLER.resolve, query)
                 logger.info(f"Resolved Spotify URL to {len(search_queries)} search queries")
             except Exception as e:
                 logger.exception("Spotify resolution failed")
@@ -158,14 +159,16 @@ class YTDLSource(discord.PCMVolumeTransformer):
         errors = []
         
         if 'entries' in data:
-            entries = list(data.get('entries') or [])[:Config.PLAYLIST_MAX]
+            # Entries are lazy, islice avoids fetching pages past the limit
+            entries = list(itertools.islice(data.get('entries') or [], Config.PLAYLIST_MAX))
             for entry in entries:
                 if entry:
                     tracks.append(Track(info=dict(entry)))
                 else:
                     errors.append("Empty playlist entry")
         else:
-            tracks.append(Track(info=dict(data)))
+            # Text searches come back unresolved without a title, show the query until playback
+            tracks.append(Track(info={**data, 'title': data.get('title') or query}))
         
         return tracks, errors
     

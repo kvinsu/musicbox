@@ -48,7 +48,7 @@ class SpotifyHandler:
         
         return None, None
     
-    async def resolve_track(self, track_id: str) -> Optional[str]:
+    def resolve_track(self, track_id: str) -> Optional[str]:
         """Resolve Spotify track to YouTube search query"""
         if not self.spotify:
             raise YTDLError("Spotify support not configured")
@@ -63,7 +63,7 @@ class SpotifyHandler:
             logger.error(f"Failed to resolve Spotify track {track_id}: {e}")
             raise YTDLError(f"Failed to resolve Spotify track: {e}")
         
-    async def resolve_playlist(self, playlist_id: str) -> list[str]:
+    def resolve_playlist(self, playlist_id: str) -> list[str]:
         """Resolve Spotify playlist to list of YouTube search queries"""
         if not self.spotify:
             raise YTDLError("Spotify support not configured")
@@ -107,8 +107,9 @@ class SpotifyHandler:
                 # Check if there are more items
                 if not results.get('next'):
                     break
-                    
-                offset += limit
+
+                # The last request may have asked for fewer than limit
+                offset += len(items)
             
             logger.info(f"Resolved Spotify playlist: {len(queries)} tracks")
             return queries
@@ -116,7 +117,7 @@ class SpotifyHandler:
             logger.error(f"Failed to resolve Spotify playlist {playlist_id}: {e}")
             raise YTDLError(f"Failed to resolve Spotify playlist: {e}")
     
-    async def resolve_album(self, album_id: str) -> list[str]:
+    def resolve_album(self, album_id: str) -> list[str]:
         """Resolve Spotify album to list of YouTube search queries"""
         if not self.spotify:
             raise YTDLError("Spotify support not configured")
@@ -149,22 +150,22 @@ class SpotifyHandler:
             logger.error(f"Failed to resolve Spotify album {album_id}: {e}")
             raise YTDLError(f"Failed to resolve Spotify album: {e}")
     
-    async def resolve(self, url: str) -> list[str]:
+    def resolve(self, url: str) -> list[str]:
         """
-        Resolve Spotify URL to YouTube search queries.
+        Resolve Spotify URL to YouTube search queries (blocking, run in an executor).
         Returns list of search queries (one for track, multiple for playlist/album).
         """
         spotify_id, spotify_type = self.extract_id(url)
-        
+
         if not spotify_id or not spotify_type:
             raise YTDLError("Invalid Spotify URL")
-        
+
         if spotify_type == 'track':
-            query = await self.resolve_track(spotify_id)
+            query = self.resolve_track(spotify_id)
             return [query] if query else []
         elif spotify_type == 'playlist':
-            return await self.resolve_playlist(spotify_id)
+            return self.resolve_playlist(spotify_id)
         elif spotify_type == 'album':
-            return await self.resolve_album(spotify_id)
+            return self.resolve_album(spotify_id)
         
         raise YTDLError(f"Unsupported Spotify type: {spotify_type}")
