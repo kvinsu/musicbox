@@ -14,7 +14,7 @@
 * **Playback controls** — play, pause, resume, stop, skip, and repeat modes
 * **Multi-server support** — independent queues per guild
 * **Fun commands** — coin flips, GIF search, and more
-* **Lightweight queueing** — metadata-only enqueuing for improved performance on large playlists
+* **Lightweight queueing** — metadata-only enqueuing for large playlists, and the next track loads while the current one plays
 * **Docker support** — deployment with Docker Compose
 
 ## Local Setup
