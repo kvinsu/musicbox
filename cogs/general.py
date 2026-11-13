@@ -1,5 +1,6 @@
 """General cog with fun and utility commands"""
 
+import asyncio
 import random
 from typing import Optional
 import discord
@@ -170,9 +171,10 @@ class General(commands.Cog, name='general'):
         await ctx.send(f'{ctx.author.mention} hat **{choice}** genommen!')
 
     @commands.hybrid_command(name='slap', help='Slap someone', aliases=['punch', 'hit'])
-    async def slap(self, ctx: commands.Context, user: Optional[discord.User] = None, reason: str = "None") -> None:
+    async def slap(self, ctx: commands.Context, user: Optional[discord.User] = None, *, reason: str = "None") -> None:
         """Send slap GIF"""
-        slap_gif = self.get_random_gif('punch')
+        async with ctx.typing():
+            slap_gif = await self.get_random_gif('punch')
         
         embed = discord.Embed(color=discord.Color.blurple())
         embed.set_image(url=slap_gif)
@@ -185,7 +187,8 @@ class General(commands.Cog, name='general'):
     @commands.hybrid_command(name='poke', help='Poke someone', aliases=['tap'])
     async def poke(self, ctx: commands.Context, user: discord.User, *, reason: Optional[str] = "") -> None:
         """Send poke GIF"""
-        poke_gif = self.get_random_gif('poke')
+        async with ctx.typing():
+            poke_gif = await self.get_random_gif('poke')
         
         embed = discord.Embed(color=discord.Color.blurple())
         embed.set_image(url=poke_gif)
@@ -217,10 +220,11 @@ class General(commands.Cog, name='general'):
     async def gif(self, ctx: commands.Context, *, search: str) -> None:
         """Fetch GIF"""
         embed = discord.Embed(color=discord.Color.blurple())
-        embed.set_image(url=self.get_random_gif(search))
+        async with ctx.typing():
+            embed.set_image(url=await self.get_random_gif(search))
         await ctx.send(embed=embed)
 
-    def get_random_gif(self, search_term: str) -> str:
+    async def get_random_gif(self, search_term: str) -> str:
         """Get random GIF from Tenor or fallback"""
         # If no TENOR_TOKEN provided, fallback to a small curated list
         if not Config.TENOR_TOKEN:
@@ -232,11 +236,13 @@ class General(commands.Cog, name='general'):
             return self.sys_random.choice(fallback)
 
         try:
-            url = (
-                f'https://g.tenor.com/v1/search?'
-                f'q={search_term}&key={Config.TENOR_TOKEN}&limit=50'
+            # requests is blocking, keep it off the event loop
+            response = await asyncio.to_thread(
+                requests.get,
+                'https://g.tenor.com/v1/search',
+                params={'q': search_term, 'key': Config.TENOR_TOKEN, 'limit': 50},
+                timeout=5,
             )
-            response = requests.get(url, timeout=5)
             data = response.json()
             gif = self.sys_random.choice(data.get('results', []))
             return gif['media'][0]['gif']['url']
