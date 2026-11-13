@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from config.settings import Config
+from core.ytdl_source import Track
 from tests.fakes import FakeSource, FakeVoice, eventually, make_track
 from utils.errors import YTDLError
 
@@ -15,6 +16,14 @@ def queued_titles(cog) -> list[str]:
 
 def playing_title(voice: FakeVoice) -> str | None:
     return voice.source.title if voice.source else None
+
+
+@pytest.fixture(autouse=True)
+def prefetched(monkeypatch) -> list[str]:
+    """Titles of tracks asked to prefetch their stream (no real fetch starts in these tests)"""
+    titles: list[str] = []
+    monkeypatch.setattr(Track, 'prefetch', lambda track: titles.append(track.title))
+    return titles
 
 
 @pytest.fixture
@@ -95,7 +104,7 @@ class TestPlayNext:
         assert 'Skipped `broken`' in ctx.channel.send.await_args_list[0].args[0]
         ctx.send.assert_not_awaited()
 
-    async def test_repeat_replays_current_track(self, cog, ctx, voice, created_sources):
+    async def test_repeat_replays_current_track_with_a_fresh_stream(self, cog, ctx, voice, created_sources, prefetched):
         queue = cog.player.get_queue(1)
         queue.repeat_mode = True
         queue.now_playing = FakeSource({'title': 'current', 'webpage_url': 'https://youtu.be/current'})
@@ -105,6 +114,14 @@ class TestPlayNext:
 
         assert playing_title(voice) == 'current'
         assert queued_titles(cog) == ['next']
+        assert prefetched == []
+
+    async def test_prefetches_the_track_after_the_one_starting(self, cog, ctx, created_sources, prefetched):
+        enqueue(cog, 'a', 'b', 'c')
+
+        await cog.play_next(ctx)
+
+        assert prefetched == ['b']
 
     async def test_broken_repeat_track_falls_back_to_queue(self, cog, ctx, voice, monkeypatch):
         attempts = []
@@ -171,6 +188,13 @@ class TestPlayCommand:
 
         cog.play_next.assert_not_awaited()
         assert queued_titles(cog) == ['a']
+
+    async def test_enqueueing_while_playing_prefetches_the_next_track(self, cog, ctx, voice, search, prefetched):
+        voice.source = FakeSource({'title': 'current'})
+
+        await cog.play.callback(cog, ctx, song='a')
+
+        assert prefetched == ['a']
 
     async def test_replies_when_nothing_was_found(self, cog, ctx, search, monkeypatch):
         search.return_value = ([], [])

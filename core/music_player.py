@@ -40,6 +40,11 @@ class MusicQueue:
     def shuffle(self) -> None:
         random.shuffle(self._tracks)
 
+    def prefetch_next(self) -> None:
+        """Start loading the stream of the track that plays next, so it starts without a gap"""
+        if self._tracks and not self.repeat_mode:
+            self._tracks[0].prefetch()
+
     def remove(self, index: int) -> Track | None:
         """Remove and return the track at a zero-based index, if there is one"""
         if not 0 <= index < len(self._tracks):

@@ -163,6 +163,7 @@ class Music(commands.Cog):
             return
 
         queue.repeat_mode = not queue.repeat_mode
+        self._queue(ctx).prefetch_next()
         await ctx.send(f'🔁 Repeat mode **{"ON" if queue.repeat_mode else "OFF"}**')
 
     @commands.hybrid_command(name='shuffle', help='Shuffle the queue')
@@ -176,6 +177,7 @@ class Music(commands.Cog):
             return
 
         queue.shuffle()
+        self._queue(ctx).prefetch_next()
         await ctx.send('🔀 Queue shuffled.')
 
     @commands.hybrid_command(name='stop', help='Stop playback and clear queue')
@@ -216,6 +218,7 @@ class Music(commands.Cog):
             await ctx.send('❌ Invalid index.')
             return
 
+        self._queue(ctx).prefetch_next()
         await ctx.send(f'🗑️ **Removed:** {removed.title}')
 
     @commands.hybrid_command(name='queue', help='Show the current queue')
@@ -281,6 +284,7 @@ class Music(commands.Cog):
         # Start playback if idle, a paused track still owns the player
         if not is_active(voice):
             await self.play_next(ctx)
+        self._queue(ctx).prefetch_next()
 
     @staticmethod
     def _skipped_message(errors: list[str]) -> str:
@@ -303,6 +307,8 @@ class Music(commands.Cog):
 
             while True:
                 if queue.repeat_mode and queue.now_playing is not None:
+                    # A new Track has no stream yet, so each loop fetches a fresh one: FFmpeg ends
+                    # quietly on a dead URL, so replaying a cached one could loop
                     track = Track(info=dict(queue.now_playing.data))
                 else:
                     track = queue.dequeue()
@@ -327,6 +333,7 @@ class Music(commands.Cog):
                     return
 
                 queue.now_playing = source
+                queue.prefetch_next()
                 if source.channel:
                     await source.channel.send(embed=EmbedBuilder.music_now_playing(source, source.requester))
                 return

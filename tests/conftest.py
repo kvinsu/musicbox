@@ -6,6 +6,7 @@ import pytest
 
 from cogs.music import Music
 from config.settings import Config
+from core.ytdl_source import YTDLSource
 from tests.fakes import FakeSource, FakeVoice
 
 
@@ -21,6 +22,18 @@ def default_config(monkeypatch):
     }
     for name, value in defaults.items():
         monkeypatch.setattr(Config, name, value)
+
+
+@pytest.fixture(autouse=True)
+def offline_ytdl(monkeypatch):
+    """Keep tests off YouTube, and fail any that call yt-dlp without setting it up.
+
+    Checked at teardown, because a failing call inside a background prefetch is only logged.
+    """
+    stub = MagicMock()
+    monkeypatch.setattr(YTDLSource, 'ytdl', stub)
+    yield
+    assert not stub.method_calls, f'unexpected yt-dlp calls: {stub.method_calls}'
 
 
 @pytest.fixture

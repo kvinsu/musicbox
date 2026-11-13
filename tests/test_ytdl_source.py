@@ -1,4 +1,5 @@
 import shlex
+import time
 
 import discord
 import pytest
@@ -8,20 +9,28 @@ from core import ytdl_source
 from core.ytdl_source import Track, YTDLSource
 from utils.errors import YTDLError
 
+VIDEO_URL = 'https://youtu.be/x'
+
 
 class FakeYoutubeDL:
-    """Returns canned extract_info results, keyed by URL when given a callable"""
+    """Returns canned extract_info results (computed per URL when given a callable) and records the URLs"""
 
     def __init__(self, result=None, error: Exception | None = None):
         self.result = result
         self.error = error
-        self.calls = []
+        self.extracted: list[str] = []
+        self.processed = 0
 
     def extract_info(self, url, download=False, process=True):
-        self.calls.append((url, process))
+        self.extracted.append(url)
         if self.error:
             raise self.error
         return self.result(url) if callable(self.result) else self.result
+
+    def process_ie_result(self, info, download=False):
+        # The real one selects a stream from the extracted formats, without network access
+        self.processed += 1
+        return {**info, 'url': info.get('url') or 'https://stream.example/selected'}
 
 
 class FakeAudio(discord.AudioSource):
@@ -91,20 +100,50 @@ def test_track_defaults():
 
 async def test_text_search_uses_query_as_title(fake_ytdl):
     # What yt-dlp returns for a plain query with process=False
-    fake_ytdl(result={'_type': 'url', 'url': 'ytsearch:some song', 'webpage_url': 'some song'})
+    fake = fake_ytdl(result={'_type': 'url', 'url': 'ytsearch:some song', 'webpage_url': 'some song'})
 
     tracks, errors = await YTDLSource.search('some song')
 
     assert [t.title for t in tracks] == ['some song']
     assert errors == []
+    # Processing an unresolved search would run it on the spot, which is play-time work
+    assert fake.processed == 0
 
 
 async def test_url_keeps_extracted_title(fake_ytdl):
-    fake_ytdl(result={'title': 'Real Title', 'webpage_url': 'https://youtu.be/x'})
+    fake_ytdl(result={'title': 'Real Title', 'webpage_url': VIDEO_URL})
 
-    tracks, _ = await YTDLSource.search('https://youtu.be/x')
+    tracks, _ = await YTDLSource.search(VIDEO_URL)
 
     assert tracks[0].title == 'Real Title'
+
+
+async def test_single_url_is_extracted_only_once(fake_ytdl, monkeypatch):
+    monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
+    fake = fake_ytdl(result={'title': 'Song', 'webpage_url': VIDEO_URL})
+
+    tracks, _ = await YTDLSource.search(VIDEO_URL)
+    source = await YTDLSource.create_source(tracks[0])
+
+    assert fake.extracted == [VIDEO_URL]
+    assert source.original.url == 'https://stream.example/selected'
+
+
+async def test_extractions_keep_only_what_playback_uses(fake_ytdl):
+    fake_ytdl(
+        result={
+            'title': 'Song',
+            'webpage_url': VIDEO_URL,
+            'formats': [{'url': 'https://stream.example/f'}] * 48,
+            'automatic_captions': {'en': [{'url': 'https://captions.example'}]},
+        }
+    )
+
+    tracks, _ = await YTDLSource.search(VIDEO_URL)
+
+    assert tracks[0].title == 'Song'
+    assert 'formats' not in tracks[0].info
+    assert 'automatic_captions' not in tracks[0].info
 
 
 async def test_playlist_stops_reading_entries_at_limit(fake_ytdl, monkeypatch):
@@ -162,17 +201,25 @@ async def test_spotify_errors_are_not_wrapped_twice(monkeypatch):
         await YTDLSource.search('https://open.spotify.com/playlist/abc')
 
 
-async def test_spotify_url_becomes_youtube_searches(fake_ytdl, monkeypatch):
+async def test_spotify_tracks_are_searched_when_they_start(monkeypatch):
     monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_ID', 'id')
     monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_SECRET', 'secret')
     monkeypatch.setattr(ytdl_source._SPOTIFY_HANDLER, 'resolve', lambda url: ['A - x', 'B - y'])
-    fake = fake_ytdl(result=lambda query: {'_type': 'url', 'url': f'ytsearch:{query}', 'webpage_url': query})
 
+    # The offline yt-dlp stub fails the test if anything is searched up front
     tracks, errors = await YTDLSource.search('https://open.spotify.com/playlist/abc')
 
-    assert [t.title for t in tracks] == ['A - x', 'B - y']
-    assert [url for url, _ in fake.calls] == ['A - x', 'B - y']
+    assert [(t.title, t.url) for t in tracks] == [('A - x', 'ytsearch:A - x'), ('B - y', 'ytsearch:B - y')]
     assert errors == []
+
+
+async def test_empty_spotify_link_is_reported(monkeypatch):
+    monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_ID', 'id')
+    monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_SECRET', 'secret')
+    monkeypatch.setattr(ytdl_source._SPOTIFY_HANDLER, 'resolve', lambda url: [])
+
+    with pytest.raises(YTDLError, match='No tracks found'):
+        await YTDLSource.search('https://open.spotify.com/playlist/abc')
 
 
 async def test_create_source_streams_with_extracted_headers(fake_ytdl, monkeypatch):
@@ -210,4 +257,59 @@ async def test_create_source_requires_stream_url(fake_ytdl):
     fake_ytdl(result={'title': 'No stream'})
 
     with pytest.raises(YTDLError, match='No stream URL'):
-        await YTDLSource.create_source(Track(info={'webpage_url': 'https://youtu.be/x'}))
+        await YTDLSource.create_source(Track(info={'webpage_url': VIDEO_URL}))
+
+
+async def test_prefetched_stream_is_used_when_the_track_starts(fake_ytdl, monkeypatch):
+    monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
+    fake = fake_ytdl(result={'url': 'https://stream.example/audio', 'title': 'Song'})
+    track = Track(info={'url': 'ytsearch:song'})
+
+    track.prefetch()
+    track.prefetch()
+    # Starts while the prefetch is still running, so it has to wait for it rather than fetch again
+    source = await YTDLSource.create_source(track)
+
+    assert fake.extracted == ['ytsearch:song']
+    assert source.original.url == 'https://stream.example/audio'
+
+
+async def test_failed_prefetch_is_retried_when_the_track_starts(fake_ytdl, monkeypatch):
+    monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
+    attempts = []
+
+    def result(url):
+        attempts.append(url)
+        if len(attempts) == 1:
+            raise RuntimeError('timed out')
+        return {'url': 'https://stream.example/audio', 'title': 'Song'}
+
+    fake_ytdl(result=result)
+    track = Track(info={'url': 'ytsearch:song'})
+
+    track.prefetch()
+    source = await YTDLSource.create_source(track)
+
+    assert len(attempts) == 2
+    assert source.title == 'Song'
+
+
+async def test_fresh_stream_is_not_fetched_again(monkeypatch):
+    monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
+    track = Track(info={'webpage_url': VIDEO_URL, 'url': 'https://stream.example/audio'}, fetched_at=time.monotonic())
+
+    # The offline yt-dlp stub fails the test on any fetch
+    source = await YTDLSource.create_source(track)
+
+    assert source.original.url == 'https://stream.example/audio'
+
+
+async def test_expired_stream_is_fetched_again(fake_ytdl, monkeypatch):
+    monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
+    fake_ytdl(result={'url': 'https://stream.example/new', 'title': 'Song'})
+    expired = time.monotonic() - ytdl_source._STREAM_TTL - 1
+    track = Track(info={'webpage_url': VIDEO_URL, 'url': 'https://stream.example/old'}, fetched_at=expired)
+
+    source = await YTDLSource.create_source(track)
+
+    assert source.original.url == 'https://stream.example/new'
