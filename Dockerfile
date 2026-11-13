@@ -1,5 +1,5 @@
 # Use Python 3.11 slim image
-FROM python:3.11-slim
+FROM python:3.15-slim
 
 # Install FFmpeg and other dependencies
 RUN apt-get update && \
