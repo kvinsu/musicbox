@@ -10,7 +10,7 @@ from utils.errors import YTDLError
 
 
 def queued_titles(cog) -> list[str]:
-    return [t.title for t in cog.player.get_queue(1).queue]
+    return [t.title for t in cog.player.get_queue(1)]
 
 
 def playing_title(voice: FakeVoice) -> str | None:
@@ -25,13 +25,13 @@ def channel() -> MagicMock:
     return channel
 
 
-async def enqueue(cog, *titles, channel=None):
-    await cog.player.get_queue(1).enqueue([make_track(t, channel=channel) for t in titles])
+def enqueue(cog, *titles, channel=None):
+    cog.player.get_queue(1).enqueue([make_track(t, channel=channel) for t in titles])
 
 
 class TestPlayNext:
     async def test_starts_next_track_and_announces_it(self, cog, ctx, voice, channel, created_sources):
-        await enqueue(cog, 'a', 'b', channel=channel)
+        enqueue(cog, 'a', 'b', channel=channel)
 
         await cog.play_next(ctx)
 
@@ -42,7 +42,7 @@ class TestPlayNext:
         assert channel.send.await_args.kwargs['embed'].description == 'a'
 
     async def test_finished_track_advances_from_player_thread(self, cog, ctx, voice, created_sources):
-        await enqueue(cog, 'a', 'b')
+        enqueue(cog, 'a', 'b')
         await cog.play_next(ctx)
 
         # discord.py calls `after` from the audio player thread
@@ -52,7 +52,7 @@ class TestPlayNext:
         assert queued_titles(cog) == []
 
     async def test_concurrent_calls_start_one_track_and_keep_the_rest(self, cog, ctx, voice, created_sources):
-        await enqueue(cog, 'a', 'b', 'c')
+        enqueue(cog, 'a', 'b', 'c')
 
         # The after-play callback and /play both calling play_next while idle
         await asyncio.gather(cog.play_next(ctx), cog.play_next(ctx))
@@ -64,7 +64,7 @@ class TestPlayNext:
     async def test_does_nothing_while_paused(self, cog, ctx, voice, created_sources):
         voice.source = FakeSource({'title': 'current'})
         voice.pause()
-        await enqueue(cog, 'a')
+        enqueue(cog, 'a')
 
         await cog.play_next(ctx)
 
@@ -73,7 +73,7 @@ class TestPlayNext:
 
     async def test_play_failure_does_not_drain_queue(self, cog, ctx, created_sources):
         ctx.voice_client = FakeVoice(play_error=RuntimeError('voice websocket closed'))
-        await enqueue(cog, 'a', 'b', 'c')
+        enqueue(cog, 'a', 'b', 'c')
 
         await cog.play_next(ctx)
 
@@ -81,13 +81,13 @@ class TestPlayNext:
         assert queued_titles(cog) == ['b', 'c']
 
     async def test_skips_tracks_that_fail_to_load(self, cog, ctx, voice, monkeypatch):
-        async def create_source(track, *, loop=None):
+        async def create_source(track):
             if track.title == 'broken':
                 raise YTDLError('unavailable')
             return FakeSource(track.info)
 
         monkeypatch.setattr('cogs.music.YTDLSource.create_source', create_source)
-        await enqueue(cog, 'broken', 'ok')
+        enqueue(cog, 'broken', 'ok')
 
         await cog.play_next(ctx)
 
@@ -99,7 +99,7 @@ class TestPlayNext:
         queue = cog.player.get_queue(1)
         queue.repeat_mode = True
         queue.now_playing = FakeSource({'title': 'current', 'webpage_url': 'https://youtu.be/current'})
-        await enqueue(cog, 'next')
+        enqueue(cog, 'next')
 
         await cog.play_next(ctx)
 
@@ -109,7 +109,7 @@ class TestPlayNext:
     async def test_broken_repeat_track_falls_back_to_queue(self, cog, ctx, voice, monkeypatch):
         attempts = []
 
-        async def create_source(track, *, loop=None):
+        async def create_source(track):
             if track.title == 'current':
                 attempts.append(track)
                 assert len(attempts) == 1, 'broken repeat track was retried'
@@ -120,7 +120,7 @@ class TestPlayNext:
         queue = cog.player.get_queue(1)
         queue.repeat_mode = True
         queue.now_playing = FakeSource({'title': 'current'})
-        await enqueue(cog, 'next')
+        enqueue(cog, 'next')
 
         await cog.play_next(ctx)
 
@@ -194,7 +194,7 @@ class TestPlayCommand:
 
 class TestControls:
     async def start(self, cog, ctx, *titles):
-        await enqueue(cog, *titles)
+        enqueue(cog, *titles)
         await cog.play_next(ctx)
 
     async def test_skip_plays_next_track(self, cog, ctx, voice, created_sources):
@@ -234,7 +234,7 @@ class TestControls:
         assert queued_titles(cog) == []
 
     async def test_remove_uses_one_based_index(self, cog, ctx):
-        await enqueue(cog, 'a', 'b', 'c')
+        enqueue(cog, 'a', 'b', 'c')
 
         await cog.remove.callback(cog, ctx, 2)
 
@@ -243,7 +243,7 @@ class TestControls:
 
     @pytest.mark.parametrize('index', [0, 4])
     async def test_remove_rejects_out_of_range_index(self, cog, ctx, index):
-        await enqueue(cog, 'a', 'b', 'c')
+        enqueue(cog, 'a', 'b', 'c')
 
         await cog.remove.callback(cog, ctx, index)
 
@@ -257,7 +257,7 @@ class TestControls:
         await cog.skip.callback(cog, ctx)
 
         assert playing_title(voice) == 'a'
-        ctx.send.assert_awaited_once_with('❌ You\'re not in my voice channel.')
+        ctx.send.assert_awaited_once_with("❌ You're not in my voice channel.")
 
 
 class TestDisconnects:
@@ -268,7 +268,7 @@ class TestDisconnects:
     async def test_inactivity_disconnects_idle_client(self, cog, voice):
         queue = cog.player.get_queue(1)
 
-        await cog._schedule_disconnect(1, voice)
+        await cog._disconnect_when_idle(1, voice)
 
         voice.disconnect.assert_awaited_once()
         assert cog.player.get_queue(1) is not queue
@@ -277,7 +277,7 @@ class TestDisconnects:
         stale = FakeVoice(connected=False)
         queue = cog.player.get_queue(1)
 
-        await cog._schedule_disconnect(1, stale)
+        await cog._disconnect_when_idle(1, stale)
 
         stale.disconnect.assert_not_awaited()
         assert cog.player.get_queue(1) is queue

@@ -2,43 +2,36 @@
 
 import discord
 from discord.ext import commands
-from config.settings import Config
 
 
-class Admin(commands.Cog, name='admin'):    
+class Admin(commands.Cog, name='admin'):
     def __init__(self, client: commands.Bot) -> None:
         self.client = client
-    
-    @commands.hybrid_command(name='shutdown', hidden=True, help='Shut down the bot completely', aliases=['s', 'sleep'])
+
+    @commands.hybrid_command(
+        name='shutdown',
+        hidden=True,
+        help='Shut down the bot completely',
+        aliases=['s', 'sleep'],
+    )
     @commands.is_owner()
     async def shutdown(self, ctx: commands.Context) -> None:
-        """Shutdown bot"""
         await ctx.send('💤 Shutting down...')
         await self.client.close()
 
     @commands.hybrid_command(name='invite', hidden=True, help='Get the bot invite link')
     @commands.is_owner()
     async def invite(self, ctx: commands.Context) -> None:
-        """Generate invite link"""
-        invite_url = (
-            f'https://discordapp.com/oauth2/authorize?'
-            f'client_id={Config.BOT_ID}&permissions=8&scope=bot'
-        )
-        embed = discord.Embed(
-            title='🎧 Invite Link',
-            description=invite_url,
-            color=discord.Color.blurple()
-        )
+        url = discord.utils.oauth_url(self.client.application_id, permissions=discord.Permissions(administrator=True))
+        embed = discord.Embed(title='🎧 Invite Link', description=url, color=discord.Color.blurple())
         await ctx.send(embed=embed, ephemeral=True)
 
     @commands.hybrid_command(name='servers', hidden=True, help='List all servers the bot is in')
     @commands.is_owner()
     async def servers(self, ctx: commands.Context) -> None:
-        """List all guilds"""
-        servers = list(self.client.guilds)
-        servers_str = ', '.join([server.name for server in servers])
-        await ctx.send(f'🎧 **Servers ({len(servers)}):** {servers_str}', ephemeral=True)
+        names = ', '.join(guild.name for guild in self.client.guilds)
+        await ctx.send(f'🎧 **Servers ({len(self.client.guilds)}):** {names}', ephemeral=True)
+
 
 async def setup(client: commands.Bot) -> None:
-    """Setup function for cog"""
     await client.add_cog(Admin(client))

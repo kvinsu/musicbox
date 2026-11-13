@@ -48,6 +48,7 @@ def fake_ytdl(monkeypatch):
         fake = FakeYoutubeDL(**kwargs)
         monkeypatch.setattr(YTDLSource, 'ytdl', fake)
         return fake
+
     return install
 
 
@@ -66,9 +67,14 @@ def test_ffmpeg_headers_are_crlf_terminated():
 
 
 def test_ffmpeg_headers_prefer_stream_headers():
-    lines = ffmpeg_headers(YTDLSource.build_ffmpeg_before_options({
-        'User-Agent': 'stream-agent', 'Accept': '*/*',
-    }))
+    lines = ffmpeg_headers(
+        YTDLSource.build_ffmpeg_before_options(
+            {
+                'User-Agent': 'stream-agent',
+                'Accept': '*/*',
+            }
+        )
+    )
 
     assert 'User-Agent: stream-agent' in lines
     assert 'Accept: */*' in lines
@@ -143,6 +149,19 @@ async def test_spotify_url_requires_credentials(monkeypatch):
         await YTDLSource.search('https://open.spotify.com/track/abc')
 
 
+async def test_spotify_errors_are_not_wrapped_twice(monkeypatch):
+    monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_ID', 'id')
+    monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_SECRET', 'secret')
+
+    def resolve(url):
+        raise YTDLError('Spotify playlist unavailable: not found or private')
+
+    monkeypatch.setattr(ytdl_source._SPOTIFY_HANDLER, 'resolve', resolve)
+
+    with pytest.raises(YTDLError, match=r'^Spotify playlist unavailable: not found or private$'):
+        await YTDLSource.search('https://open.spotify.com/playlist/abc')
+
+
 async def test_spotify_url_becomes_youtube_searches(fake_ytdl, monkeypatch):
     monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_ID', 'id')
     monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_SECRET', 'secret')
@@ -158,10 +177,14 @@ async def test_spotify_url_becomes_youtube_searches(fake_ytdl, monkeypatch):
 
 async def test_create_source_streams_with_extracted_headers(fake_ytdl, monkeypatch):
     monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
-    fake_ytdl(result={
-        'url': 'https://stream.example/audio', 'title': 'Song', 'webpage_url': 'https://youtu.be/x',
-        'http_headers': {'User-Agent': 'stream-agent'},
-    })
+    fake_ytdl(
+        result={
+            'url': 'https://stream.example/audio',
+            'title': 'Song',
+            'webpage_url': 'https://youtu.be/x',
+            'http_headers': {'User-Agent': 'stream-agent'},
+        }
+    )
     track = Track(info={'webpage_url': 'https://youtu.be/x', 'requester': 'user', 'channel': 'chan'})
 
     source = await YTDLSource.create_source(track)
@@ -171,7 +194,7 @@ async def test_create_source_streams_with_extracted_headers(fake_ytdl, monkeypat
     assert source.data['channel'] == 'chan'
     assert source.original.url == 'https://stream.example/audio'
     assert 'User-Agent: stream-agent' in ffmpeg_headers(source.original.before_options)
-    assert source.original.options == YTDLSource.ffmpeg_options['options']
+    assert source.original.options == YTDLSource.FFMPEG_OPTIONS
 
 
 async def test_create_source_plays_first_search_result(fake_ytdl, monkeypatch):

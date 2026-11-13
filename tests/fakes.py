@@ -1,4 +1,5 @@
 """Fakes for the Discord, voice and playback boundaries"""
+
 import asyncio
 from unittest.mock import AsyncMock
 
@@ -72,6 +73,8 @@ class FakeSource:
 
     def __init__(self, info: dict):
         self.data = dict(info)
+        self.requester = info.get('requester')
+        self.channel = info.get('channel')
         self.title = info.get('title')
         self.url = info.get('webpage_url')
         self.duration = info.get('duration') or 0

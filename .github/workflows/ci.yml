@@ -31,7 +31,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
       - name: Ruff
-        run: ruff check --output-format=github .
+        run: |
+          ruff check --output-format=github .
+          ruff format --check .
       - name: Pytest
         run: pytest
 
@@ -45,5 +47,8 @@ jobs:
           persist-credentials: false
       - name: Build
         run: docker build --tag musicbot:ci .
-      - name: Import cogs in the image
-        run: docker run --rm musicbot:ci python -c "import cogs.admin, cogs.general, cogs.music"
+      - name: Import the bot and load libopus in the image
+        run: >-
+          docker run --rm musicbot:ci python -c
+          "import main, cogs.admin, cogs.general, cogs.music, discord.opus as opus;
+          assert opus._load_default(), 'libopus missing'"

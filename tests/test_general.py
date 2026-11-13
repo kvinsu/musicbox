@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import requests
@@ -10,6 +10,36 @@ from config.settings import Config
 @pytest.fixture
 def general() -> General:
     return General(MagicMock())
+
+
+@pytest.fixture
+def ctx() -> MagicMock:
+    ctx = MagicMock()
+    ctx.send = AsyncMock()
+    ctx.author.mention = '@author'
+    return ctx
+
+
+def sent_embed(ctx):
+    return ctx.send.await_args.kwargs['embed']
+
+
+async def test_roulette_ignores_extra_whitespace(general, ctx, monkeypatch):
+    monkeypatch.setattr(general.sys_random, 'choice', lambda options: options[-1])
+
+    await general.roulette.callback(general, ctx, options=' a   b ')
+
+    assert {f.name: f.value for f in sent_embed(ctx).fields} == {'Options': 'a, b', 'Selected': 'b'}
+
+
+async def test_slap_mentions_reason_only_when_given(general, ctx):
+    user = MagicMock(mention='@target')
+
+    await general.slap.callback(general, ctx, user)
+    assert sent_embed(ctx).description == '@author slapped @target.'
+
+    await general.slap.callback(general, ctx, user, reason='for science')
+    assert sent_embed(ctx).description == '@author slapped @target. Reason: for science'
 
 
 async def test_gif_falls_back_without_token(general, monkeypatch):

@@ -4,51 +4,62 @@ from core.music_player import MusicPlayer, MusicQueue
 from tests.fakes import make_track
 
 
-async def test_queue_is_first_in_first_out():
-    queue = MusicQueue(guild_id=1)
-    await queue.enqueue([make_track('a'), make_track('b')])
-
-    assert (await queue.dequeue()).title == 'a'
-    assert (await queue.dequeue()).title == 'b'
-    assert await queue.dequeue() is None
+def titles(queue: MusicQueue) -> list[str]:
+    return [track.title for track in queue]
 
 
-async def test_remove_returns_track_at_index():
-    queue = MusicQueue(guild_id=1)
-    await queue.enqueue([make_track('a'), make_track('b'), make_track('c')])
+def test_queue_is_first_in_first_out():
+    queue = MusicQueue()
+    queue.enqueue([make_track('a'), make_track('b')])
 
-    removed = await queue.remove(1)
-
-    assert removed.title == 'b'
-    assert [t.title for t in queue.queue] == ['a', 'c']
-
-
-async def test_remove_out_of_range_returns_none():
-    queue = MusicQueue(guild_id=1)
-    await queue.enqueue([make_track('a')])
-
-    assert await queue.remove(1) is None
-    assert await queue.remove(-1) is None
-    assert queue.size() == 1
+    assert queue.dequeue().title == 'a'
+    assert queue.dequeue().title == 'b'
+    assert queue.dequeue() is None
 
 
-async def test_shuffle_reorders_queue(monkeypatch):
+def test_len_counts_waiting_tracks():
+    queue = MusicQueue()
+    assert len(queue) == 0
+
+    queue.enqueue([make_track('a'), make_track('b')])
+
+    assert len(queue) == 2
+
+
+def test_remove_returns_track_at_index():
+    queue = MusicQueue()
+    queue.enqueue([make_track('a'), make_track('b'), make_track('c')])
+
+    assert queue.remove(1).title == 'b'
+    assert titles(queue) == ['a', 'c']
+
+
+def test_remove_out_of_range_returns_none():
+    queue = MusicQueue()
+    queue.enqueue([make_track('a')])
+
+    assert queue.remove(1) is None
+    assert queue.remove(-1) is None
+    assert titles(queue) == ['a']
+
+
+def test_shuffle_reorders_queue(monkeypatch):
     monkeypatch.setattr(random, 'shuffle', lambda items: items.reverse())
-    queue = MusicQueue(guild_id=1)
-    await queue.enqueue([make_track('a'), make_track('b'), make_track('c')])
+    queue = MusicQueue()
+    queue.enqueue([make_track('a'), make_track('b'), make_track('c')])
 
-    await queue.shuffle()
+    queue.shuffle()
 
-    assert [t.title for t in queue.queue] == ['c', 'b', 'a']
+    assert titles(queue) == ['c', 'b', 'a']
 
 
-async def test_clear_empties_queue():
-    queue = MusicQueue(guild_id=1)
-    await queue.enqueue([make_track('a')])
+def test_clear_empties_queue():
+    queue = MusicQueue()
+    queue.enqueue([make_track('a')])
 
-    await queue.clear()
+    queue.clear()
 
-    assert queue.size() == 0
+    assert len(queue) == 0
 
 
 def test_player_keeps_one_queue_per_guild_until_cleanup():

@@ -58,7 +58,7 @@ def created_sources(monkeypatch) -> list[FakeSource]:
     """Make create_source succeed for every track and record what it built"""
     created = []
 
-    async def create_source(track, *, loop=None):
+    async def create_source(track):
         # Yield like the real extraction does, so concurrent callers interleave
         await asyncio.sleep(0)
         source = FakeSource(track.info)

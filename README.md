@@ -21,7 +21,7 @@
 
 ### Requirements
 
-* [Python 3.15+](https://www.python.org/downloads/)
+* [Python 3.13+](https://www.python.org/downloads/) (the Docker image uses 3.15)
 * [FFmpeg](https://ffmpeg.org/download.html) executable in PATH
 * [Docker](https://www.docker.com/) to run the app
 * Discord app and a bot account (with ownership or admin permissions)
@@ -32,7 +32,6 @@
 2. **Create a `.env` file** in the root directory:
    ```
    BOT_TOKEN=your_bot_token_here
-   BOT_ID=your_bot_id_here
    ```
 3. **Install dependencies**
    ```sh
@@ -50,9 +49,8 @@
 2. **Create a `.env` file** in the root directory:
    ```
    BOT_TOKEN=your_bot_token_here
-   BOT_ID=your_bot_id_here
    COMMAND_PREFIX=!
-   PLAYLIST_MAX=100
+   PLAYLIST_MAX=400
    TENOR_TOKEN=your_tenor_token_here
    ```
 3. **Build and run** the container:
@@ -69,6 +67,7 @@
 ```sh
 pip install -r requirements-dev.txt
 ruff check .
+ruff format .
 pytest
 ```
 
@@ -107,9 +106,8 @@ All commands support both **prefix** (`!command`) and **slash** (`/command`) for
 * `/coinflip` or `!coinflip` / `!flip` / `!coin` — Flip a coin (German)
 * `/fliflaflu` or `!fliflaflu` / `!enemenemiste` / `!schnickschnackschnuck` — Rock-paper-scissors (German)
 * `/roulette <options>` or `!roulette [option1 option2 ...]` / `!select` / `!choice` — Select a random option
-* `/dere <user>` or `!dere <username>` — Generate a dere-type personality
 * `/gif <search>` or `!gif <search>` — Fetch a random GIF from Tenor
-* `!lolcoinflip` / `!lolflip` / `!lolcoin` — LoL-themed coin flip (German, prefix only)
+* `/lolcoinflip [username]` or `!lolcoinflip` / `!lolflip` / `!lolcoin` — LoL-themed coin flip (German)
 
 ### Admin (Owner Only)
 
@@ -122,7 +120,6 @@ All commands support both **prefix** (`!command`) and **slash** (`/command`) for
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `BOT_TOKEN` | ✅ | - | Discord bot token |
-| `BOT_ID` | ✅ | - | Discord bot client ID |
 | `COMMAND_PREFIX` | ❌ | `!` | Prefix for text commands |
 | `TENOR_TOKEN` | ❌ | - | Tenor API key (only required for GIF search commands) |
 | `SPOTIFY_CLIENT_ID` | ❌ | - | Spotify API client ID (for Spotify URL support) |
@@ -131,7 +128,6 @@ All commands support both **prefix** (`!command`) and **slash** (`/command`) for
 | `YTDL_MAX_WORKERS` | ❌ | 4 | Max concurrent yt-dlp workers |
 | `DISCONNECT_TIMEOUT` | ❌ | 300 | Auto-disconnect timeout in seconds |
 | `LOG_LEVEL` | ❌ | INFO | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `SELF_HOST` | ❌ | true | Set to `false` if cloud-hosting |
 
 ### Getting Spotify API Credentials
 

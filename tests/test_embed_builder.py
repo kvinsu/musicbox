@@ -1,16 +1,22 @@
+from unittest.mock import MagicMock
+
 import pytest
 
 from core.embed_builder import EmbedBuilder
 from tests.fakes import FakeSource, make_track
 
 
-@pytest.mark.parametrize(('seconds', 'expected'), [
-    (0, '/'),
-    (59, '59s'),
-    (60, '1m'),
-    (3661, '1h 1m 1s'),
-    (90061, '1d 1h 1m 1s'),
-])
+@pytest.mark.parametrize(
+    ('seconds', 'expected'),
+    [
+        (0, '/'),
+        (59, '59s'),
+        (60, '1m'),
+        (3661, '1h 1m 1s'),
+        (90061, '1d 1h 1m 1s'),
+        (125.7, '2m 5s'),
+    ],
+)
 def test_format_duration(seconds, expected):
     assert EmbedBuilder._format_duration(seconds) == expected
 
@@ -29,12 +35,20 @@ def test_queue_list_shows_first_ten_and_total_duration():
 
 
 def test_now_playing_shows_track_details():
-    source = FakeSource({
-        'title': 'Song', 'webpage_url': 'https://youtu.be/x', 'duration': 125,
-        'uploader': 'Artist', 'uploader_url': 'https://youtube.com/@artist',
-    })
+    requester = MagicMock()
+    requester.__str__.return_value = 'someone'
+    requester.display_avatar.url = 'https://cdn.example/avatar.png'
+    source = FakeSource(
+        {
+            'title': 'Song',
+            'webpage_url': 'https://youtu.be/x',
+            'duration': 125,
+            'uploader': 'Artist',
+            'uploader_url': 'https://youtube.com/@artist',
+        }
+    )
 
-    embed = EmbedBuilder.music_now_playing(source, requester='someone')
+    embed = EmbedBuilder.music_now_playing(source, requester)
 
     assert embed.description == 'Song'
     assert embed.url == 'https://youtu.be/x'
@@ -42,3 +56,13 @@ def test_now_playing_shows_track_details():
     assert fields['Duration'] == '2m 5s'
     assert fields['Uploader'] == '[Artist](https://youtube.com/@artist)'
     assert embed.footer.text == 'Requested by someone'
+    assert embed.footer.icon_url == 'https://cdn.example/avatar.png'
+
+
+def test_now_playing_without_uploader_link_or_requester():
+    source = FakeSource({'title': 'Song', 'uploader': 'Artist'})
+
+    embed = EmbedBuilder.music_now_playing(source, None)
+
+    assert {f.name: f.value for f in embed.fields}['Uploader'] == 'Artist'
+    assert embed.footer.text is None

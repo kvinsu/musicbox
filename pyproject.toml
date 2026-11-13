@@ -5,9 +5,24 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
-target-version = "py315"
+# Oldest Python the code runs on (local setups); Docker and CI use 3.15
+target-version = "py313"
+line-length = 120
 
 [tool.ruff.lint]
-# Explicit so ruff upgrades can't change the rule set: pycodestyle errors,
-# pyflakes, bugbear, and blocking calls inside async code
-select = ["E4", "E7", "E9", "F", "B", "ASYNC"]
+# Explicit so ruff upgrades can't change the rule set
+select = [
+    "E4", "E7", "E9", "F",  # pycodestyle errors, pyflakes
+    "B",  # bugbear
+    "ASYNC",  # blocking calls inside async code
+    "I",  # import order
+    "UP",  # modern syntax for the target Python
+    "PIE",
+    "SIM",
+    "RUF",
+]
+# Bot replies use kaomoji with full-width characters on purpose
+ignore = ["RUF001"]
+
+[tool.ruff.format]
+quote-style = "single"
