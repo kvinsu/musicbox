@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "packageRules": [
+    {
+      "description": "Batch routine Python bumps; yt-dlp and discord.py stay separate so a breaking release is easy to spot",
+      "matchManagers": ["pip_requirements"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["*", "!/^yt[-_.]dlp$/", "!/^discord[-_.]py$/"],
+      "groupName": "python packages"
+    }
+  ]
+}

@@ -74,7 +74,7 @@ pytest
 
 The tests replace Discord, yt-dlp, FFmpeg and Spotify with fakes, so they run offline. Playback, voice and slash command behavior still need a manual check on a test server.
 
-CI runs lint, tests and a Docker build on every pull request and push to `main`. Dependencies are pinned in `requirements.txt` and kept current by Dependabot. Merge yt-dlp updates promptly, since YouTube changes regularly break older versions.
+CI runs lint, tests and a Docker build on every pull request and push to `main`. Dependencies, the Docker base image and the CI actions are pinned and kept current by Renovate. Merge yt-dlp updates promptly, since YouTube changes regularly break older versions.
 
 ## Commands
 
