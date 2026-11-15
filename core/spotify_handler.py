@@ -4,6 +4,7 @@ import logging
 import re
 
 import spotipy
+from spotipy.cache_handler import MemoryCacheHandler
 from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyClientCredentials
 
@@ -35,6 +36,8 @@ class SpotifyHandler:
             auth_manager = SpotifyClientCredentials(
                 client_id=Config.SPOTIFY_CLIENT_ID,
                 client_secret=Config.SPOTIFY_CLIENT_SECRET,
+                # The default file cache needs a writable working directory, otherwise every call fetches a new token
+                cache_handler=MemoryCacheHandler(),
             )
             self.spotify = spotipy.Spotify(auth_manager=auth_manager)
             logger.info('Spotify integration enabled')

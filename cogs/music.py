@@ -244,7 +244,7 @@ class Music(commands.Cog):
 
         await ctx.send(embed=EmbedBuilder.music_now_playing(source, source.requester))
 
-    @commands.hybrid_command(name='play', help='Play a song or playlist from YouTube')
+    @commands.hybrid_command(name='play', help='Play a song or playlist from YouTube or Spotify')
     @commands.guild_only()
     async def play(self, ctx: commands.Context, *, song: str) -> None:
         if not isinstance(ctx.author, discord.Member) or ctx.author.voice is None:

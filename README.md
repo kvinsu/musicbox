@@ -66,6 +66,11 @@ Requires [Docker](https://www.docker.com/) with Compose.
    ```sh
    docker-compose down
    ```
+5. **Update the bot**, `--build` rebuilds the image (without it, Compose reuses the old one):
+   ```sh
+   git pull
+   docker-compose up -d --build
+   ```
 
 ## Development
 
@@ -86,7 +91,7 @@ All commands support both **prefix** (`!command`) and **slash** (`/command`) for
 
 ### Music
 
-* `/play <url|search>` or `!play <url|search>` — Play a song or playlist from YouTube
+* `/play <url|search>` or `!play <url|search>` — Play a song or playlist from YouTube or Spotify
 * `/skip` or `!skip` — Skip the current song
 * `/pause` or `!pause` — Pause playback
 * `/resume` or `!resume` — Resume playback
@@ -129,18 +134,29 @@ All commands support both **prefix** (`!command`) and **slash** (`/command`) for
 | `BOT_TOKEN` | ✅ | - | Discord bot token |
 | `COMMAND_PREFIX` | ❌ | `!` | Prefix for text commands |
 | `TENOR_TOKEN` | ❌ | - | Tenor API key for GIF search in `/gif`, `/slap` and `/poke`, which use built-in GIFs without it |
-| `SPOTIFY_CLIENT_ID` | ❌ | - | Spotify API client ID (for Spotify URL support) |
-| `SPOTIFY_CLIENT_SECRET` | ❌ | - | Spotify API client secret (for Spotify URL support) |
+| `SPOTIFY_CLIENT_ID` | ❌ | - | Spotify API client ID, see [Spotify Support](#spotify-support) |
+| `SPOTIFY_CLIENT_SECRET` | ❌ | - | Spotify API client secret, see [Spotify Support](#spotify-support) |
 | `PLAYLIST_MAX` | ❌ | 400 | Max tracks to enqueue from a playlist |
 | `YTDL_MAX_WORKERS` | ❌ | 4 | Max concurrent yt-dlp workers |
 | `DISCONNECT_TIMEOUT` | ❌ | 300 | Seconds to stay in voice after the queue ends |
 | `LOG_LEVEL` | ❌ | INFO | Logging level (DEBUG, INFO, WARNING, ERROR) |
 
-### Getting Spotify API Credentials
+## Spotify Support
 
-1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/)
-2. Create a new app
-3. Copy the **Client ID** and **Client Secret**
-4. Add them to your `.env` file
+Optional, without it the bot plays YouTube only.
 
-**Note:** Spotify support is optional. The bot works without it for YouTube-only playback.
+### Setup
+
+1. **Create an app** in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/). New apps run in Development Mode, which needs the app owner to have **Spotify Premium**
+2. **Copy** the **Client ID** and **Client Secret** into your `.env` file as `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`
+3. **Restart the bot**. With Docker, use `docker-compose up -d`, since `docker-compose restart` doesn't reread `.env`
+
+### How it works
+
+`/play` accepts Spotify track, album and playlist links (`open.spotify.com/...` or `spotify:` URIs). The bot reads the track list from Spotify, up to `PLAYLIST_MAX` tracks. Shortly before each track plays, it searches YouTube for "artist - title" and plays the top result. The audio always comes from YouTube, so a track can occasionally play a different version, like a live recording or a cover.
+
+### Limitations
+
+* **Spotify-made playlists** usually can't be read through Spotify's API, and the bot replies `Spotify playlist unavailable: not found or private`. These are charts and editorial playlists like Top 50, and personal mixes like Discover Weekly or Release Radar. Their IDs start with `37i9dQZ`.
+* **Private playlists** can't be read either, since the bot doesn't log in as a Spotify user.
+* **Development Mode apps created after 11 February 2026** can only read playlists their Spotify user owns or collaborates on. The bot has no user, so playlist links will likely fail on these apps, while tracks and albums still work. Spotify has postponed this change for older apps. See Spotify's [migration guide](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide).
