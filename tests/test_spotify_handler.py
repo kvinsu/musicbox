@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from spotipy.cache_handler import MemoryCacheHandler
 from spotipy.exceptions import SpotifyException
 
 from config.settings import Config
@@ -25,6 +26,14 @@ def handler() -> SpotifyHandler:
     handler = SpotifyHandler()
     handler.spotify = MagicMock()
     return handler
+
+
+def test_token_is_cached_in_memory(monkeypatch):
+    # The container can't write spotipy's default cache file, which made every call fetch a new token
+    monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_ID', 'id')
+    monkeypatch.setattr(Config, 'SPOTIFY_CLIENT_SECRET', 'secret')
+
+    assert isinstance(SpotifyHandler().spotify.auth_manager.cache_handler, MemoryCacheHandler)
 
 
 @pytest.mark.parametrize(
