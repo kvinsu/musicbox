@@ -8,6 +8,11 @@
       "matchUpdateTypes": ["minor", "patch"],
       "matchPackageNames": ["!/^yt[-_.]dlp$/", "!/^discord[-_.]py$/"],
       "groupName": "python packages"
+    },
+    {
+      "description": "discord.py 2.7 uses the davey 0.1 API, with 0.2 the voice encryption key never switches and listeners hear nothing. Lift once discord.py supports 0.2 (Rapptz/discord.py#10548)",
+      "matchPackageNames": ["davey"],
+      "allowedVersions": "<0.2"
     }
   ]
 }
