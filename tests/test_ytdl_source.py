@@ -98,15 +98,25 @@ def test_track_defaults():
     assert track.url == 'https://example.com/stream'
 
 
-async def test_text_search_uses_query_as_title(fake_ytdl):
-    # What yt-dlp returns for a plain query with process=False
-    fake = fake_ytdl(result={'_type': 'url', 'url': 'ytsearch:some song', 'webpage_url': 'some song'})
+# yt-dlp itself would take the last two for a video and a playlist ID
+@pytest.mark.parametrize('query', ['some song', 'xxxtentacio', 'FLEETWOODMAC'])
+async def test_text_is_searched_when_it_starts(query):
+    # The offline yt-dlp stub fails the test if anything is searched up front
+    tracks, errors = await YTDLSource.search(query)
 
-    tracks, errors = await YTDLSource.search('some song')
-
-    assert [t.title for t in tracks] == ['some song']
+    assert [(t.title, t.url) for t in tracks] == [(query, f'ytsearch:{query}')]
     assert errors == []
-    # Processing an unresolved search would run it on the spot, which is play-time work
+
+
+async def test_link_without_scheme_is_left_to_ytdl(fake_ytdl):
+    # What yt-dlp returns for it with process=False: a redirect to the link with a scheme
+    fake = fake_ytdl(result={'_type': 'url', 'url': 'http://youtu.be/x'})
+
+    tracks, _ = await YTDLSource.search('youtu.be/x')
+
+    assert fake.extracted == ['youtu.be/x']
+    assert [(t.title, t.url) for t in tracks] == [('youtu.be/x', 'http://youtu.be/x')]
+    # Processing an unresolved result would resolve it on the spot, which is play-time work
     assert fake.processed == 0
 
 
@@ -177,7 +187,7 @@ async def test_search_failure_keeps_cause(fake_ytdl):
     fake_ytdl(error=cause)
 
     with pytest.raises(YTDLError, match='Search failed') as excinfo:
-        await YTDLSource.search('some song')
+        await YTDLSource.search(VIDEO_URL)
     assert excinfo.value.__cause__ is cause
 
 

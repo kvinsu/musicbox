@@ -5,6 +5,7 @@ import concurrent.futures
 import functools
 import itertools
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Self
@@ -25,6 +26,8 @@ _SPOTIFY_HANDLER = SpotifyHandler()
 _STREAM_TTL = 3600
 # All playback and the embeds use; a full extraction also carries every format and caption track (~600 KiB)
 _PLAYBACK_FIELDS = ('title', 'webpage_url', 'url', 'duration', 'uploader', 'uploader_url', 'thumbnail', 'http_headers')
+# A scheme, or a host and a path like 'youtu.be/x': the test yt-dlp itself uses for input without a scheme
+_LINK_RE = re.compile(r'[a-z][a-z\d+.-]*://|[^\s/]+\.[^\s/]+/', re.IGNORECASE)
 
 
 @dataclass
@@ -87,6 +90,11 @@ class Track:
         # info['url'] becomes the stream URL, so keep the page URL to fetch it again later
         self.info.update({'webpage_url': self.url} | _playback_info(data))
         self.fetched_at = time.monotonic()
+
+
+def _search_track(query: str) -> Track:
+    """A track for a YouTube search, run when the track starts (or is prefetched)"""
+    return Track(info={'title': query, 'url': f'ytsearch:{query}'})
 
 
 def _playback_info(data: dict[str, Any]) -> dict[str, Any]:
@@ -174,10 +182,13 @@ class YTDLSource(discord.PCMVolumeTransformer):
         if not queries:
             raise YTDLError('No tracks found behind that Spotify link')
         # Each one is searched on YouTube when it starts (or is prefetched), not all up front
-        return [Track(info={'title': query, 'url': f'ytsearch:{query}'}) for query in queries], []
+        return [_search_track(query) for query in queries], []
 
     @classmethod
     async def _search_youtube(cls, query: str) -> tuple[list[Track], list[str]]:
+        if not _LINK_RE.match(query):
+            # yt-dlp would look up a word that fits a video or playlist ID (like 'xxxtentacio') as that ID
+            return [_search_track(query)], []
         try:
             data = await _run_ytdl(cls.ytdl.extract_info, query, download=False, process=False)
             if data and data.get('_type', 'video') == 'video':
@@ -202,7 +213,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
             return tracks, errors
 
         if data.get('_type', 'video') != 'video':
-            # Text searches come back unresolved without a title, show the query until playback
+            # Links yt-dlp only forwards (like 'youtu.be/x' without a scheme) come back unresolved, without a title
             return [Track(info={**data, 'title': data.get('title') or query})], []
         return [Track(info=_playback_info(data), fetched_at=time.monotonic())], []
 
