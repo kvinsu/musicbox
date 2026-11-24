@@ -28,6 +28,9 @@ _STREAM_TTL = 3600
 _PLAYBACK_FIELDS = ('title', 'webpage_url', 'url', 'duration', 'uploader', 'uploader_url', 'thumbnail', 'http_headers')
 # A scheme, or a host and a path like 'youtu.be/x': the test yt-dlp itself uses for input without a scheme
 _LINK_RE = re.compile(r'[a-z][a-z\d+.-]*://|[^\s/]+\.[^\s/]+/', re.IGNORECASE)
+_SEARCH_PREFIX = 'ytsearch:'
+# Results a search tries in turn: YouTube ranks some it won't stream to yt-dlp first, like kids' cartoons
+_SEARCH_RESULTS = 5
 
 
 @dataclass
@@ -79,11 +82,14 @@ class Track:
         if not self.url:
             raise YTDLError('No URL available')
         try:
-            data = await _run_ytdl(YTDLSource.ytdl.extract_info, self.url, download=False)
+            if self.url.startswith(_SEARCH_PREFIX):
+                data = await _run_ytdl(_extract_search, self.url.removeprefix(_SEARCH_PREFIX))
+            else:
+                data = await _run_ytdl(YTDLSource.ytdl.extract_info, self.url, download=False)
         except Exception as e:
             raise YTDLError(f'Failed to fetch: {e}') from e
         if data and 'entries' in data:
-            # Search results: play the best match
+            # A link that turned out to be a playlist: play its first video
             data = next((entry for entry in data['entries'] if entry), None)
         if not data:
             raise YTDLError('No data available')
@@ -94,7 +100,26 @@ class Track:
 
 def _search_track(query: str) -> Track:
     """A track for a YouTube search, run when the track starts (or is prefetched)"""
-    return Track(info={'title': query, 'url': f'ytsearch:{query}'})
+    return Track(info={'title': query, 'url': f'{_SEARCH_PREFIX}{query}'})
+
+
+def _extract_search(query: str) -> dict[str, Any] | None:
+    """Extract the first of the top search results that can be played. Blocking, run it on the yt-dlp executor"""
+    ytdl = YTDLSource.ytdl
+    # Unprocessed, the results are lazy references, so only the ones tried get extracted
+    results = ytdl.extract_info(f'ytsearch{_SEARCH_RESULTS}:{query}', download=False, process=False)
+    first_error = None
+    for entry in (results or {}).get('entries') or []:
+        if not entry or not entry.get('url'):
+            continue
+        try:
+            return ytdl.extract_info(entry['url'], download=False)
+        except yt_dlp.utils.DownloadError as e:
+            logger.info(f'Skipping search result for {query!r}: {e}')
+            first_error = first_error or e
+    if first_error:
+        raise first_error
+    return None
 
 
 def _playback_info(data: dict[str, Any]) -> dict[str, Any]:
