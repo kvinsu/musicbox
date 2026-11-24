@@ -3,6 +3,7 @@ import time
 
 import discord
 import pytest
+import yt_dlp
 
 from config.settings import Config
 from core import ytdl_source
@@ -254,11 +255,75 @@ async def test_create_source_streams_with_extracted_headers(fake_ytdl, monkeypat
     assert source.original.options == YTDLSource.FFMPEG_OPTIONS
 
 
-async def test_create_source_plays_first_search_result(fake_ytdl, monkeypatch):
+def search_for(*videos: dict | Exception):
+    """extract_info results for a search whose results extract to these videos, or raise these errors"""
+    urls = [f'https://www.youtube.com/watch?v={i}' for i in range(len(videos))]
+
+    def result(url):
+        if url.startswith('ytsearch'):
+            # What yt-dlp returns for it with process=False: lazy references to the videos
+            return {'_type': 'playlist', 'entries': ({'_type': 'url', 'url': u} for u in urls)}
+        video = videos[urls.index(url)]
+        if isinstance(video, Exception):
+            raise video
+        return {'webpage_url': url, **video}
+
+    return result, urls
+
+
+async def test_search_plays_first_result(fake_ytdl, monkeypatch):
+    monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
+    result, urls = search_for(
+        {'url': 'https://stream.example/1', 'title': 'First'}, {'url': 'https://stream.example/2'}
+    )
+    fake = fake_ytdl(result=result)
+
+    track = Track(info={'title': 'song', 'url': 'ytsearch:song'})
+    source = await YTDLSource.create_source(track)
+
+    assert source.title == 'First'
+    # Only the result that is played gets extracted
+    assert fake.extracted == [f'ytsearch{ytdl_source._SEARCH_RESULTS}:song', urls[0]]
+    # Fetched again from the video itself, not by searching again
+    assert track.url == urls[0]
+
+
+async def test_search_skips_results_that_cannot_be_played(fake_ytdl, monkeypatch):
+    monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
+    unavailable = yt_dlp.utils.DownloadError('ERROR: [youtube] 0: This video is not available')
+    result, urls = search_for(unavailable, {'url': 'https://stream.example/2', 'title': 'Second'}, {'url': 'x'})
+    fake = fake_ytdl(result=result)
+
+    source = await YTDLSource.create_source(Track(info={'url': 'ytsearch:song'}))
+
+    assert source.title == 'Second'
+    assert fake.extracted[1:] == urls[:2]
+
+
+async def test_search_reports_first_error_when_no_result_plays(fake_ytdl):
+    result, _ = search_for(
+        yt_dlp.utils.DownloadError('This video is not available'),
+        yt_dlp.utils.DownloadError('Video unavailable'),
+    )
+    fake_ytdl(result=result)
+
+    with pytest.raises(YTDLError, match=r'^Failed to fetch: This video is not available$'):
+        await YTDLSource.create_source(Track(info={'url': 'ytsearch:song'}))
+
+
+async def test_search_without_results_is_reported(fake_ytdl):
+    result, _ = search_for()
+    fake_ytdl(result=result)
+
+    with pytest.raises(YTDLError, match='No data available'):
+        await YTDLSource.create_source(Track(info={'url': 'ytsearch:song'}))
+
+
+async def test_link_to_a_playlist_plays_its_first_video(fake_ytdl, monkeypatch):
     monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
     fake_ytdl(result={'entries': [None, {'url': 'https://stream.example/1', 'title': 'First'}]})
 
-    source = await YTDLSource.create_source(Track(info={'url': 'ytsearch:song'}))
+    source = await YTDLSource.create_source(Track(info={'url': 'https://youtube.com/playlist?list=x'}))
 
     assert source.title == 'First'
 
@@ -273,14 +338,14 @@ async def test_create_source_requires_stream_url(fake_ytdl):
 async def test_prefetched_stream_is_used_when_the_track_starts(fake_ytdl, monkeypatch):
     monkeypatch.setattr(discord, 'FFmpegPCMAudio', FakeAudio)
     fake = fake_ytdl(result={'url': 'https://stream.example/audio', 'title': 'Song'})
-    track = Track(info={'url': 'ytsearch:song'})
+    track = Track(info={'webpage_url': VIDEO_URL})
 
     track.prefetch()
     track.prefetch()
     # Starts while the prefetch is still running, so it has to wait for it rather than fetch again
     source = await YTDLSource.create_source(track)
 
-    assert fake.extracted == ['ytsearch:song']
+    assert fake.extracted == [VIDEO_URL]
     assert source.original.url == 'https://stream.example/audio'
 
 
@@ -295,7 +360,7 @@ async def test_failed_prefetch_is_retried_when_the_track_starts(fake_ytdl, monke
         return {'url': 'https://stream.example/audio', 'title': 'Song'}
 
     fake_ytdl(result=result)
-    track = Track(info={'url': 'ytsearch:song'})
+    track = Track(info={'webpage_url': VIDEO_URL})
 
     track.prefetch()
     source = await YTDLSource.create_source(track)
